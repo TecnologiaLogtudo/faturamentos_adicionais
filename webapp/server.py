@@ -755,6 +755,15 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def strip_base_path_middleware(request: Request, call_next):
+    path = request.scope.get("path", "")
+    if APP_BASE_PATH != "/" and path.startswith(APP_BASE_PATH):
+        request.scope["path"] = path[len(APP_BASE_PATH):]
+        if not request.scope["path"]:
+            request.scope["path"] = "/"
+    return await call_next(request)
+
 @app.get("/static/{file_path:path}")
 def static_file(file_path: str) -> Response:
     full_path = DIST_DIR / file_path
@@ -773,10 +782,11 @@ def _render_index_html() -> str:
     html = (DIST_DIR / "index.html").read_text(encoding="utf-8")
     html = html.replace(BASE_PATH_PLACEHOLDER, json.dumps(CLIENT_BASE_PATH))
     
-    # Injeta o caminho base (sub-rota) diretamente nos arquivos CSS/JS e Imagens
-    if CLIENT_BASE_PATH:
-        html = html.replace('href="./', f'href="{CLIENT_BASE_PATH}/')
-        html = html.replace('src="./', f'src="{CLIENT_BASE_PATH}/')
+    # Força os assets a passarem pela rota explícita /static/ do FastAPI
+    # Isso previne que o proxy retorne uma página HTML de erro (Unexpected token '<')
+    base = CLIENT_BASE_PATH if CLIENT_BASE_PATH else ""
+    html = html.replace('href="./', f'href="{base}/static/')
+    html = html.replace('src="./', f'src="{base}/static/')
         
     return html
 
