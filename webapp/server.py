@@ -771,7 +771,14 @@ def health_check() -> Dict[str, str]:
 
 def _render_index_html() -> str:
     html = (DIST_DIR / "index.html").read_text(encoding="utf-8")
-    return html.replace(BASE_PATH_PLACEHOLDER, json.dumps(CLIENT_BASE_PATH))
+    html = html.replace(BASE_PATH_PLACEHOLDER, json.dumps(CLIENT_BASE_PATH))
+    
+    # Injeta o caminho base (sub-rota) diretamente nos arquivos CSS/JS e Imagens
+    if CLIENT_BASE_PATH:
+        html = html.replace('href="./', f'href="{CLIENT_BASE_PATH}/')
+        html = html.replace('src="./', f'src="{CLIENT_BASE_PATH}/')
+        
+    return html
 
 
 @app.get("/")
