@@ -24,6 +24,7 @@ from queue import Queue, Empty
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, Request, Depends, Form
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTMLResponse, Response, RedirectResponse
@@ -51,8 +52,14 @@ ROOT = Path(__file__).resolve().parent
 UPLOAD_DIR = ROOT / "uploads"
 EXPORT_DIR = ROOT / "exports"
 ARTIFACTS_DIR = EXPORT_DIR / "jobs"
-MANUAL_DIR = ROOT / "static" / "manual"
-ADMIN_DIR = ROOT / "static" / "admin"
+
+# Configura o diretório de build do frontend (/app/dist no Docker, fallback para webapp/static local)
+DIST_DIR = Path("/app/dist")
+if not DIST_DIR.exists():
+    DIST_DIR = ROOT / "static"
+
+MANUAL_DIR = DIST_DIR / "manual"
+ADMIN_DIR = DIST_DIR / "admin"
 KNOWN_ERRORS_PATH = Path(__file__).resolve().parent.parent / "config" / "known-errors.json"
 
 if sys.platform.startswith("win"):
@@ -742,7 +749,7 @@ app.add_middleware(
 
 @app.get("/static/{file_path:path}")
 def static_file(file_path: str) -> Response:
-    full_path = ROOT / "static" / file_path
+    full_path = DIST_DIR / file_path
     if not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail="Arquivo nao encontrado")
     data = full_path.read_bytes()
@@ -752,7 +759,7 @@ def static_file(file_path: str) -> Response:
 
 @app.get("/")
 def index() -> HTMLResponse:
-    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    html = (DIST_DIR / "index.html").read_text(encoding="utf-8")
     return HTMLResponse(content=html)
 
 
@@ -1310,3 +1317,8 @@ def admin_delete_artifact(request: Request, artifact_id: str):
         db.delete(artifact)
         db.commit()
     return {"status": "ok"}
+
+# O fallback final: monta toda a pasta dist na raiz para servir assets do frontend (JS, CSS, Imagens, etc.)
+# Sem isso, frameworks como Vite/React não conseguem carregar seus arquivos auxiliares e causam tela branca.
+if DIST_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(DIST_DIR)), name="dist")
