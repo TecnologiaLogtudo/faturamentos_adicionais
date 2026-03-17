@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LogTudo Scraper - Web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+      
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="icon" type="image/x-icon" href="/static/logtudo.png" />
+    
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">LT</div>
+          <div class="brand-text">
+            <div class="brand-title">LogTudo</div>
+            <div class="brand-subtitle">Faturamentos adicionais v1</div>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-btn active" data-view="processamento">Processamento</button>
+          <button class="nav-btn" data-view="configuracoes">Configuracoes</button>
+          <button class="nav-btn" data-view="resultados">Resultados</button>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="status-pill" id="connStatus">Desconectado</div>
+          <div class="status-pill secondary" id="runStatus">Parado</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-left">
+            <h1>Faturamentos adicionais</h1>
+            <p>Operacao central com logs em tempo real.</p>
+          </div>
+          <div class="topbar-actions">
+            <button class="btn ghost" id="btnQuickLogs">Mostrar Logs</button>
+            <button class="btn primary" id="btnStartTop">Iniciar</button>
+          </div>
+        </header>
+
+        <section class="view active" id="view-processamento">
+          <div class="grid two-col">
+            <div class="card">
+              <div class="card-header">
+                <h2>Arquivo</h2>
+                <span class="badge" id="fileBadge">Nenhum arquivo</span>
+              </div>
+              <div class="card-body">
+                <label class="file-upload">
+                  <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+                  <span>Selecionar planilha</span>
+                </label>
+                <div class="file-meta">
+                  <div class="file-name-row">
+                    <div id="fileName">-</div>
+                    <button class="file-reset" id="btnClearFile" title="Remover planilha">×</button>
+                  </div>
+                  <div id="fileStats">0 linhas, 0 colunas</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h2>Mapeamento</h2>
+                <span class="badge ghost">Obrigatorio</span>
+              </div>
+              <div class="card-body mapping-grid">
+                <div class="field">
+                  <label>Nota Fiscal</label>
+                  <select id="map-nf"></select>
+                </div>
+                <div class="field">
+                  <label>Tipo ADC</label>
+                  <select id="map-adc"></select>
+                </div>
+                <div class="field">
+                  <label>Valor CTE</label>
+                  <select id="map-valor"></select>
+                </div>
+                <div class="field">
+                  <label>Senha Ravex</label>
+                  <select id="map-senha"></select>
+                </div>
+                <div class="field">
+                  <label>Transporte</label>
+                  <select id="map-transporte"></select>
+                </div>
+                <div class="field">
+                  <label>Saida CTE</label>
+                  <select id="map-cte"></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid single">
+            <div class="card">
+              <div class="card-header">
+                <h2>Pre-visualizacao</h2>
+                <span class="badge ghost" id="previewRows">0 linhas</span>
+              </div>
+              <div class="card-body">
+                <div class="table-wrap" style="overflow-x: auto;">
+                  <table id="previewTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid single">
+            <div class="card">
+              <div class="card-header">
+                <h2>Controle</h2>
+                <span class="badge" id="progressBadge">0%</span>
+              </div>
+              <div class="card-body">
+                <div class="toggle-row">
+                  <label class="switch">
+                    <input type="checkbox" id="toggleEnvios" />
+                    <span class="slider"></span>
+                  </label>
+                  <span>Executar Envios</span>
+                </div>
+                <div class="control-buttons">
+                  <button class="btn primary" id="btnStart">Iniciar</button>
+                  <button class="btn" id="btnPause" disabled>Pausar</button>
+                  <button class="btn danger" id="btnStop" disabled>Parar</button>
+                </div>
+                <div class="progress">
+                  <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="progress-meta">
+                  <span id="progressText">0% - 0 de 0</span>
+                  <span id="currentNF">NF: N/A</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid single">
+            <div class="card logs-card">
+              <div class="card-header">
+                <h2>Logs ao vivo</h2>
+                <div class="log-controls">
+                  <select id="logFilter">
+                    <option value="ALL">Todos</option>
+                    <option value="INFO">INFO</option>
+                    <option value="SUCCESS">SUCCESS</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ERROR">ERROR</option>
+                  </select>
+                  <button class="btn ghost" id="btnClearLogs">Limpar</button>
+                  <label class="checkbox">
+                    <input type="checkbox" id="autoScroll" checked />
+                    Auto-scroll
+                  </label>
+                </div>
+              </div>
+              <div class="card-body log-body">
+                <div id="logStream"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-configuracoes">
+          <div class="grid two-col">
+            <div class="card">
+              <div class="card-header">
+                <h2>Credenciais</h2>
+                <span class="badge ghost" id="settingsStatus">Nao salvo</span>
+              </div>
+              <div class="card-body form-grid">
+                <div class="field">
+                  <label>Usuario</label>
+                  <input type="text" id="cfgUser" />
+                </div>
+                <div class="field">
+                  <label>Senha</label>
+                  <input type="password" id="cfgPass" />
+                </div>
+                <div class="field">
+                  <label>UF</label>
+                  <select id="cfgUf">
+                    <option>Bahia</option>
+                    <option>Ceara</option>
+                    <option>Pernambuco</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Timeout (ms)</label>
+                  <input type="number" id="cfgTimeout" />
+                </div>
+              </div>
+              <div class="card-footer">
+                <button class="btn primary" id="btnSaveSettings">Salvar</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h2>Delays</h2>
+                <span class="badge ghost">Operacional</span>
+              </div>
+              <div class="card-body form-grid">
+                <div class="field">
+                  <label>Pausa (ms)</label>
+                  <input type="number" id="cfgStepDelay" />
+                </div>
+                <div class="field">
+                  <label>Rede (ms)</label>
+                  <input type="number" id="cfgNetworkDelay" />
+                </div>
+                <div class="field">
+                  <label>Interacao (ms)</label>
+                  <input type="number" id="cfgInteractionDelay" />
+                </div>
+                <div class="field">
+                  <label>Digitacao (ms)</label>
+                  <input type="number" id="cfgTypingDelay" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid single">
+            <div class="card muted">
+              <div class="card-header">
+                <h2>Futuro</h2>
+                <span class="badge">Placeholder</span>
+              </div>
+              <div class="card-body future-grid">
+                <div class="future-item">
+                  <div class="future-title">IA Assistida</div>
+                  <p>Interacao humana para ajustar scraping em tempo real.</p>
+                  <button class="btn ghost" disabled>Em breve</button>
+                </div>
+                <div class="future-item">
+                  <div class="future-title">Observabilidade</div>
+                  <p>Metricas, traces e dashboards operacionais.</p>
+                  <button class="btn ghost" disabled>Em breve</button>
+                </div>
+                <div class="future-item">
+                  <div class="future-title">Auditoria</div>
+                  <p>Registro detalhado de alteracoes e aprovacao.</p>
+                  <button class="btn ghost" disabled>Em breve</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-resultados">
+          <div class="grid two-col">
+            <div class="card summary-card">
+              <h3>Sucessos</h3>
+              <div class="summary-value" id="sumSuccess">0</div>
+            </div>
+            <div class="card summary-card">
+              <h3>Erros</h3>
+              <div class="summary-value" id="sumError">0</div>
+            </div>
+            <div class="card summary-card">
+              <h3>Pendentes</h3>
+              <div class="summary-value" id="sumPending">0</div>
+            </div>
+            <div class="card summary-card">
+              <h3>Taxa</h3>
+              <div class="summary-value" id="sumRate">0%</div>
+            </div>
+          </div>
+
+          <div class="grid single">
+            <div class="card">
+              <div class="card-header">
+                <h2>Detalhamento</h2>
+                <div class="log-controls">
+                  <input type="text" id="resultSearch" placeholder="Buscar por NF ou CTE" />
+                  <button class="btn" id="btnExportCsv">Exportar CSV</button>
+                  <button class="btn" id="btnExportXlsx">Exportar XLSX</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="table-wrap">
+                  <table id="resultsTable">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Nota Fiscal</th>
+                        <th>Tipo ADC</th>
+                        <th>CT-e</th>
+                        <th>Mensagem</th>
+                        <th>Data/Hora</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

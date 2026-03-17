@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Login - LogTudo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600&family=Space+Grotesk:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body class="admin-body">
+    <div class="login-card">
+      <div class="login-title">Sessao Admin</div>
+      <p>Informe usuario e senha para acessar a observabilidade.</p>
+      <form id="loginForm">
+        <label>Usuario</label>
+        <input type="text" name="username" required />
+        <label>Senha</label>
+        <input type="password" name="password" required />
+        <button class="btn primary" type="submit">Entrar</button>
+        <div class="login-error" id="loginError"></div>
+      </form>
+    </div>
+
+    <script>
+      const form = document.getElementById("loginForm");
+      const errorEl = document.getElementById("loginError");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorEl.textContent = "";
+        const formData = new FormData(form);
+        const res = await fetch("/admin/login", {
+          method: "POST",
+          body: formData,
+        });
+        if (res.ok) {
+          window.location.href = "/admin";
+          return;
+        }
+        errorEl.textContent = "Credenciais invalidas";
+      });
+    </script>
+  </body>
+</html>

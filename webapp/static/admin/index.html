@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin - LogTudo Observabilidade</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600&family=Space+Grotesk:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body class="admin-body">
+    <div class="admin-app">
+      <header class="admin-topbar">
+        <div>
+          <div class="admin-title">LogTudo Admin</div>
+          <div class="admin-subtitle">Observabilidade, Monitoramento e Auditoria</div>
+        </div>
+        <div class="admin-actions">
+          <button class="btn ghost" id="btnRefresh">Atualizar</button>
+          <button class="btn" id="btnLogout">Sair</button>
+        </div>
+      </header>
+
+      <nav class="admin-tabs">
+        <button class="tab active" data-tab="overview">Visao Geral</button>
+        <button class="tab" data-tab="jobs">Jobs / Sessoes</button>
+        <button class="tab" data-tab="actions">Acoes Criticas</button>
+        <button class="tab" data-tab="steps">Passos & Acoes</button>
+        <button class="tab" data-tab="artifacts">Artefatos</button>
+        <button class="tab" data-tab="browser">Logs do Browser</button>
+        <button class="tab" data-tab="errors">Erros</button>
+      </nav>
+
+      <section class="panel active" id="panel-overview">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Jobs</div>
+            <div class="kpi-value" id="kpiTotal">0</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Sucessos</div>
+            <div class="kpi-value" id="kpiSuccess">0</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Erros</div>
+            <div class="kpi-value" id="kpiError">0</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Em Execucao</div>
+            <div class="kpi-value" id="kpiRunning">0</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-jobs">
+        <div class="panel-header">
+          <h2>Jobs / Sessoes</h2>
+          <select id="statusFilter">
+            <option value="">Todos</option>
+            <option value="running">Running</option>
+            <option value="completed">Completed</option>
+            <option value="error">Error</option>
+            <option value="stopped">Stopped</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table id="jobsTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Usuario</th>
+                <th>IP</th>
+                <th>Inicio</th>
+                <th>Duracao (s)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-actions">
+        <div class="panel-header">
+          <h2>Acoes Criticas</h2>
+          <input type="text" id="actionsJobId" placeholder="Job ID" />
+          <button class="btn" id="btnLoadActions">Carregar</button>
+        </div>
+        <div class="table-wrap">
+          <table id="actionsTable">
+            <thead>
+              <tr>
+                <th>Acao</th>
+                <th>Ator</th>
+                <th>IP</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-steps">
+        <div class="panel-header">
+          <h2>Passos & Acoes</h2>
+          <input type="text" id="stepsJobId" placeholder="Job ID" />
+          <button class="btn" id="btnLoadSteps">Carregar</button>
+        </div>
+        <div class="table-wrap">
+          <table id="stepsTable">
+            <thead>
+              <tr>
+                <th>Passo</th>
+                <th>Status</th>
+                <th>Inicio</th>
+                <th>Fim</th>
+                <th>Meta</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-artifacts">
+        <div class="panel-header">
+          <h2>Artefatos</h2>
+          <input type="text" id="artifactsJobId" placeholder="Job ID" />
+          <button class="btn" id="btnLoadArtifacts">Carregar</button>
+        </div>
+        <div class="table-wrap">
+          <table id="artifactsTable">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Caminho</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-browser">
+        <div class="panel-header">
+          <h2>Logs do Browser</h2>
+          <input type="text" id="browserJobId" placeholder="Job ID" />
+          <button class="btn" id="btnLoadBrowser">Carregar</button>
+        </div>
+        <div class="table-wrap">
+          <table id="browserTable">
+            <thead>
+              <tr>
+                <th>Nivel</th>
+                <th>Tipo</th>
+                <th>Mensagem</th>
+                <th>URL</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-errors">
+        <div class="panel-header">
+          <h2>Erros</h2>
+          <input type="text" id="errorsJobId" placeholder="Job ID" />
+          <button class="btn" id="btnLoadErrors">Carregar</button>
+        </div>
+        <div class="table-wrap">
+          <table id="errorsTable">
+            <thead>
+              <tr>
+                <th>Mensagem</th>
+                <th>Data</th>
+                <th>Contexto</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <script src="/admin/admin.js"></script>
+  </body>
+</html>

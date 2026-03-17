@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# Node / Frontend
+node_modules/
+dist/
+
+# Logs
+*.log
+logs/
+
+# IDE / Editores / Sistema Operacional
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Arquivos de Dados e Diretórios Locais (Ignorar no build)
+*.xlsx
+*.xls
+*.csv
+webapp/uploads/
+Desnecessario/

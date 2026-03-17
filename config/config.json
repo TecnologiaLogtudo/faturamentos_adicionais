@@ -1,0 +1,18 @@
+{
+  "username": "ATUALIZARBI",
+  "password": "Atualizar@123",
+  "uf": "Bahia",
+  "step_delay": "1500",
+  "page_timeout": "30000",
+  "network_delay": "3000",
+  "interaction_delay": "500",
+  "typing_delay": "75",
+  "column_mapping": {
+    "nota_fiscal": 0,
+    "tipo_adc": 5,
+    "valor_cte": 1,
+    "senha_ravex": 2,
+    "transporte": 4,
+    "cte_output": 3
+  }
+}

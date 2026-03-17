@@ -1,0 +1,26 @@
+{
+  "name": "logtudo-web-scraper",
+  "version": "1.0.0",
+  "description": "Aplicativo web scraping para automação LogTudo",
+  "main": "webapp/app.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "npx playwright test -c tests/playwright.config.js"
+  },
+  "keywords": [
+    "web-scraper",
+    "playwright",
+    "automation"
+  ],
+  "author": "MiniMax Agent",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "electron": "^28.0.0"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "xlsx": "^0.18.5"
+  }
+}

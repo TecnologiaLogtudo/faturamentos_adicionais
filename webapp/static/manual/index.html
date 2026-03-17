@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Manual do Usuario - Faturamentos adicionais</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/manual/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="hero-left">
+          <div class="pill">Manual do Usuario</div>
+          <h1>Faturamentos adicionais v1</h1>
+          <p>
+            Guia pratico para configurar, executar e exportar resultados com o
+            LogTudo Scraper. Atualizado em 13/03/2026.
+          </p>
+          <div class="hero-meta">
+            <div>
+              <strong>URL sugerida:</strong> https://automacao.logtudo.com.br/FaturamentosAdicionais/manual
+            </div>
+            <div>
+              <strong>Subdiretorio:</strong> /manual
+            </div>
+          </div>
+        </div>
+        <div class="hero-right">
+          <div class="card highlight">
+            <h2>Inicio Rapido</h2>
+            <ol>
+              <li>Acesse a aba Configuracoes e salve suas credenciais.</li>
+              <li>Envie a planilha e confira o mapeamento.</li>
+              <li>Clique em Iniciar para processar as NFs.</li>
+              <li>Acompanhe logs e exporte os resultados.</li>
+            </ol>
+          </div>
+        </div>
+      </header>
+
+      <section class="toc card">
+        <h2>Sumario</h2>
+        <div class="toc-grid">
+          <a href="#visao-geral">Visao geral</a>
+          <a href="#requisitos">Requisitos</a>
+          <a href="#acesso">Acesso e perfis</a>
+          <a href="#configuracoes">Configuracoes iniciais</a>
+          <a href="#planilha">Preparar planilha</a>
+          <a href="#upload">Upload e mapeamento</a>
+          <a href="#execucao">Execucao da automacao</a>
+          <a href="#logs">Logs ao vivo</a>
+          <a href="#resultados">Resultados e exportacao</a>
+          <a href="#erros">Erros comuns</a>
+          <a href="#boas-praticas">Boas praticas</a>
+          <a href="#seguranca">Seguranca e privacidade</a>
+          <a href="#faq">FAQ</a>
+          <a href="#suporte">Suporte</a>
+        </div>
+      </section>
+
+      <section id="visao-geral" class="card section">
+        <h2>Visao geral</h2>
+        <p>
+          O LogTudo Scraper automatiza a consulta e registro de CT-e a partir de
+          planilhas de notas fiscais. A aplicacao concentra configuracoes,
+          acompanhamento em tempo real e exportacao de resultados em um unico
+          painel.
+        </p>
+        <div class="image-slot">
+          <span>Imagem: Tela principal (Processamento)</span>
+        </div>
+      </section>
+
+      <section id="requisitos" class="card section">
+        <h2>Requisitos</h2>
+        <ul>
+          <li>Navegador Google Chrome instalado no servidor onde a automacao roda.</li>
+          <li>Credenciais validas de acesso ao sistema LogTudo.</li>
+          <li>Planilha em formato .xlsx, .xls ou .csv.</li>
+          <li>Conexao estavel com internet.</li>
+        </ul>
+        <div class="callout">
+          <strong>Importante:</strong> a automacao abre o navegador em modo visivel
+          (headless desativado). Nao feche a janela durante o processo.
+        </div>
+      </section>
+
+      <section id="acesso" class="card section">
+        <h2>Acesso e perfis</h2>
+        <p>
+          O acesso e feito via URL do app. Recomenda-se criar perfis separados para
+          operacao e supervisao, mantendo o login de producao somente com usuarios
+          autorizados.
+        </p>
+        <ul>
+          <li><strong>Operador:</strong> executa cargas e acompanha logs.</li>
+          <li><strong>Supervisor:</strong> revisa resultados e exporta relatorios.</li>
+        </ul>
+      </section>
+
+      <section id="configuracoes" class="card section">
+        <h2>Configuracoes iniciais</h2>
+        <p>
+          Abra a aba <strong>Configuracoes</strong> e preencha os campos obrigatorios.
+        </p>
+        <div class="two-col">
+          <div>
+            <h3>Credenciais</h3>
+            <ul>
+              <li>Usuario: login no portal LogTudo.</li>
+              <li>Senha: senha do portal LogTudo.</li>
+              <li>UF: selecione Bahia, Ceara ou Pernambuco.</li>
+              <li>Timeout: limite maximo para cada etapa.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Delays operacionais</h3>
+            <ul>
+              <li>Pausa: intervalo entre registros.</li>
+              <li>Rede: espera para carregamentos.</li>
+              <li>Interacao: tempo entre cliques.</li>
+              <li>Digitacao: velocidade de preenchimento.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="image-slot">
+          <span>Imagem: Aba Configuracoes</span>
+        </div>
+      </section>
+
+      <section id="planilha" class="card section">
+        <h2>Preparar planilha</h2>
+        <p>
+          A planilha deve conter, no minimo, as colunas abaixo. Os nomes podem
+          variar, mas precisam ser mapeados no app.
+        </p>
+        <ul>
+          <li>Nota Fiscal</li>
+          <li>Tipo ADC</li>
+          <li>Valor CTE</li>
+          <li>Senha Ravex</li>
+          <li>Transporte</li>
+          <li>Saida CTE (coluna para gravar o resultado)</li>
+        </ul>
+        <div class="callout">
+          <strong>Dica:</strong> deixe a coluna Saida CTE vazia para permitir que a
+          automacao grave os numeros gerados.
+        </div>
+      </section>
+
+      <section id="upload" class="card section">
+        <h2>Upload e mapeamento</h2>
+        <p>
+          Na tela <strong>Processamento</strong>, envie a planilha e confirme o
+          mapeamento de colunas. O sistema sugere um mapeamento automatico, mas
+          sempre revise.
+        </p>
+        <div class="image-slot">
+          <span>Imagem: Mapeamento de colunas</span>
+        </div>
+        <ul>
+          <li>Selecione a planilha.</li>
+          <li>Verifique o preview das primeiras linhas.</li>
+          <li>Confirme cada campo obrigatorio.</li>
+        </ul>
+      </section>
+
+      <section id="execucao" class="card section">
+        <h2>Execucao da automacao</h2>
+        <p>
+          A automacao percorre as linhas da planilha e preenche a coluna Saida CTE
+          conforme o resultado do portal.
+        </p>
+        <div class="two-col">
+          <div>
+            <h3>Controles principais</h3>
+            <ul>
+              <li><strong>Iniciar:</strong> comeca o processamento.</li>
+              <li><strong>Pausar:</strong> interrompe temporariamente.</li>
+              <li><strong>Parar:</strong> encerra a execucao atual.</li>
+              <li><strong>Executar Envios:</strong> ativa passos adicionais de envio.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Indicadores</h3>
+            <ul>
+              <li>Progresso em percentual.</li>
+              <li>NF atual em processamento.</li>
+              <li>Status geral (Parado, Rodando, Pausado).</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout">
+          <strong>Observacao:</strong> linhas ja preenchidas na coluna Saida CTE sao
+          ignoradas automaticamente.
+        </div>
+      </section>
+
+      <section id="logs" class="card section">
+        <h2>Logs ao vivo</h2>
+        <p>
+          Os logs mostram tudo que a automacao esta fazendo em tempo real. Use os
+          filtros para localizar erros rapidamente.
+        </p>
+        <div class="image-slot">
+          <span>Imagem: Painel de logs ao vivo</span>
+        </div>
+        <ul>
+          <li>INFO: passos executados.</li>
+          <li>SUCCESS: etapas concluidas com sucesso.</li>
+          <li>WARNING: atencao para tratativas.</li>
+          <li>ERROR: falhas que exigem acao.</li>
+        </ul>
+      </section>
+
+      <section id="resultados" class="card section">
+        <h2>Resultados e exportacao</h2>
+        <p>
+          Na aba Resultados, revise a lista completa e exporte em CSV ou XLSX.
+        </p>
+        <div class="image-slot">
+          <span>Imagem: Aba Resultados</span>
+        </div>
+        <ul>
+          <li>Use a busca para localizar NF ou CT-e.</li>
+          <li>Confira as contagens de sucessos e erros.</li>
+          <li>Exporte o arquivo final quando terminar.</li>
+        </ul>
+      </section>
+
+      <section id="erros" class="card section">
+        <h2>Erros comuns</h2>
+        <ul>
+          <li>Credenciais invalidas: confira usuario e senha.</li>
+          <li>Timeouts frequentes: aumente o Timeout ou os delays.</li>
+          <li>Campos vazios: verifique a planilha e o mapeamento.</li>
+          <li>Erro de sessao: reinicie a automacao e refaca o login.</li>
+        </ul>
+        <div class="callout">
+          <strong>Tratativas automaticas:</strong> o sistema tenta recuperar erros
+          conhecidos, mas pode exigir intervencao manual.
+        </div>
+      </section>
+
+      <section id="boas-praticas" class="card section">
+        <h2>Boas praticas</h2>
+        <ul>
+          <li>Teste com poucas linhas antes de rodar a planilha completa.</li>
+          <li>Mantenha o navegador visivel e sem interferencias.</li>
+          <li>Evite usar a mesma conta em dois acessos simultaneos.</li>
+          <li>Salve exportacoes em pastas organizadas por data.</li>
+        </ul>
+      </section>
+
+      <section id="seguranca" class="card section">
+        <h2>Seguranca e privacidade</h2>
+        <p>
+          As credenciais ficam salvas no servidor do app. Proteja o acesso ao
+          ambiente e limite o uso a pessoas autorizadas.
+        </p>
+        <ul>
+          <li>Use URLs com HTTPS no ambiente de producao.</li>
+          <li>Restrinja o acesso por IP ou VPN quando possivel.</li>
+          <li>Revise regularmente quem tem acesso ao sistema.</li>
+        </ul>
+      </section>
+
+      <section id="faq" class="card section">
+        <h2>FAQ</h2>
+        <div class="faq">
+          <div>
+            <h3>Posso interromper e continuar depois?</h3>
+            <p>
+              Sim. Use Pausar para interromper e Retomar para continuar. Linhas
+              ja preenchidas nao serao reprocessadas.
+            </p>
+          </div>
+          <div>
+            <h3>Onde os arquivos exportados ficam salvos?</h3>
+            <p>
+              No servidor, na pasta de exportacao do app. Baixe o arquivo pelo
+              botao de exportacao na aba Resultados.
+            </p>
+          </div>
+          <div>
+            <h3>O que acontece se o portal estiver fora do ar?</h3>
+            <p>
+              A automacao registra erro e segue as tratativas configuradas. Em
+              casos persistentes, pare a execucao e tente mais tarde.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="suporte" class="card section">
+        <h2>Suporte</h2>
+        <p>
+          Em caso de duvidas, consulte o time de operacoes ou o responsavel pela
+          automacao. Inclua sempre a data, hora e os logs quando abrir um chamado.
+        </p>
+        <div class="callout">
+          <strong>Checklist para suporte:</strong> arquivo enviado, UF, status,
+          captura de tela e log do erro.
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div>Faturamentos adicionais v1</div>
+        <div>Manual do Usuario - 13/03/2026</div>
+      </footer>
+    </div>
+  </body>
+</html>

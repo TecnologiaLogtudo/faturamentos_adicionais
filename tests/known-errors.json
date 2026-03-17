@@ -1,0 +1,23 @@
+{
+  "frete_minimo_nao_preenchido": {
+    "match_any": [
+      "Frete minimo vazio",
+      "frete mínimo",
+      "Frete mínimo",
+      "frete minimo"
+    ],
+    "treatment": {
+      "description": "Reaplicar Tipo de Carga para forcar recalculo do frete minimo.",
+      "steps": [
+        {
+          "action": "select_tipo_carga",
+          "value": ""
+        },
+        {
+          "action": "select_tipo_carga",
+          "value": "FRI"
+        }
+      ]
+    }
+  }
+}
