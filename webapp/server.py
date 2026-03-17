@@ -62,6 +62,14 @@ MANUAL_DIR = DIST_DIR / "manual"
 ADMIN_DIR = DIST_DIR / "admin"
 KNOWN_ERRORS_PATH = Path(__file__).resolve().parent.parent / "config" / "known-errors.json"
 
+BASE_PATH_PLACEHOLDER = "__LOGTUDO_BASE_PATH__"
+APP_BASE_PATH = os.getenv("BASE_PATH", "/") or "/"
+if not APP_BASE_PATH.startswith("/"):
+    APP_BASE_PATH = f"/{APP_BASE_PATH}"
+if APP_BASE_PATH != "/" and APP_BASE_PATH.endswith("/"):
+    APP_BASE_PATH = APP_BASE_PATH.rstrip("/")
+CLIENT_BASE_PATH = "" if APP_BASE_PATH == "/" else APP_BASE_PATH
+
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
@@ -757,10 +765,19 @@ def static_file(file_path: str) -> Response:
     return Response(content=data, media_type=media_type or "application/octet-stream")
 
 
+def _render_index_html() -> str:
+    html = (DIST_DIR / "index.html").read_text(encoding="utf-8")
+    return html.replace(BASE_PATH_PLACEHOLDER, json.dumps(CLIENT_BASE_PATH))
+
+
 @app.get("/")
 def index() -> HTMLResponse:
-    html = (DIST_DIR / "index.html").read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=_render_index_html())
+
+
+@app.get("/index.html")
+def index_html() -> HTMLResponse:
+    return HTMLResponse(content=_render_index_html())
 
 
 @app.get("/favicon.ico")

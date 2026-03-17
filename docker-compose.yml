@@ -16,11 +16,12 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_PASS=${ADMIN_PASS}
+      - BASE_PATH=${BASE_PATH:-/}
     volumes:
       - ./webapp/uploads:/app/webapp/uploads
     labels:
       - traefik.enable=true
-      - "traefik.http.routers.faturamentos.rule=Host(`${APP_HOST:-localhost}`)"
+      - "traefik.http.routers.faturamentos.rule=Host(`${APP_HOST:-localhost}`) && PathPrefix(`${BASE_PATH:-/}`)"
       - traefik.http.routers.faturamentos.entrypoints=http
       - traefik.http.services.faturamentos.loadbalancer.server.port=8000
     healthcheck:

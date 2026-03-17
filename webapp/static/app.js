@@ -8,6 +8,16 @@ const state = {
   logFilter: "ALL",
 };
 
+const RAW_BASE_PATH = window.LOGTUDO_BASE_PATH || "";
+const BASE_PATH = RAW_BASE_PATH.replace(/\/+$/, "");
+const withBasePath = (path) => {
+  if (!BASE_PATH) {
+    return path;
+  }
+  const trimmed = path.replace(/^\/+/, "");
+  return `${BASE_PATH}/${trimmed}`;
+};
+
 const el = (id) => document.getElementById(id);
 
 const navButtons = document.querySelectorAll(".nav-btn");
@@ -156,7 +166,7 @@ el("fileInput").addEventListener("change", async (e) => {
   if (settings.uf) {
     form.append("uf", settings.uf);
   }
-  const res = await fetch("/api/files", { method: "POST", body: form });
+  const res = await fetch(withBasePath("/api/files"), { method: "POST", body: form });
   if (!res.ok) return;
   const data = await res.json();
   state.fileId = data.fileId;
@@ -195,7 +205,7 @@ async function startJob() {
     executeEnvios: el("toggleEnvios").checked,
     settings,
   };
-  const res = await fetch("/api/jobs", {
+  const res = await fetch(withBasePath("/api/jobs"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -213,17 +223,17 @@ async function startJob() {
 
 async function pauseJob() {
   if (!state.jobId) return;
-  await fetch(`/api/jobs/${state.jobId}/pause`, { method: "POST" });
+  await fetch(withBasePath(`/api/jobs/${state.jobId}/pause`), { method: "POST" });
 }
 
 async function resumeJob() {
   if (!state.jobId) return;
-  await fetch(`/api/jobs/${state.jobId}/resume`, { method: "POST" });
+  await fetch(withBasePath(`/api/jobs/${state.jobId}/resume`), { method: "POST" });
 }
 
 async function stopJob() {
   if (!state.jobId) return;
-  await fetch(`/api/jobs/${state.jobId}/stop`, { method: "POST" });
+  await fetch(withBasePath(`/api/jobs/${state.jobId}/stop`), { method: "POST" });
 }
 
 el("btnStart").addEventListener("click", startJob);
@@ -248,7 +258,7 @@ function updateStatus(status) {
 
 async function pollStatus() {
   if (!state.jobId) return;
-  const res = await fetch(`/api/jobs/${state.jobId}/status`);
+  const res = await fetch(withBasePath(`/api/jobs/${state.jobId}/status`));
   if (!res.ok) return;
   const data = await res.json();
   updateStatus(data.status);
@@ -308,7 +318,7 @@ el("logFilter").addEventListener("change", (e) => {
 
 el("btnClearLogs")?.addEventListener("click", async () => {
   if (!state.jobId) return;
-  const res = await fetch(`/api/jobs/${state.jobId}/logs/clear`, { method: "POST" });
+  const res = await fetch(withBasePath(`/api/jobs/${state.jobId}/logs/clear`), { method: "POST" });
   if (res.ok) {
     state.logs = [];
     renderLogs();
@@ -321,7 +331,7 @@ el("autoScroll").addEventListener("change", (e) => {
 
 async function loadResults() {
   if (!state.jobId) return;
-  const res = await fetch(`/api/jobs/${state.jobId}/results`);
+  const res = await fetch(withBasePath(`/api/jobs/${state.jobId}/results`));
   if (!res.ok) return;
   const data = await res.json();
   state.results = data.results || [];
@@ -362,7 +372,7 @@ el("resultSearch").addEventListener("input", renderResults);
 
 async function exportResults(format) {
   if (!state.jobId) return;
-  const res = await fetch(`/api/jobs/${state.jobId}/export`, {
+  const res = await fetch(withBasePath(`/api/jobs/${state.jobId}/export`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ format }),
