@@ -5,7 +5,7 @@ openpyxl==3.1.5
 pandas==3.0.1
 psycopg2-binary==2.9.10
 python-dateutil==2.9.0.post0
-python-multipart==0.0.9
+python-multipart==0.0.22
 python-dotenv==1.0.1
 SQLAlchemy==2.0.32
 six==1.17.0
