@@ -19,11 +19,6 @@ services:
       - BASE_PATH=${BASE_PATH:-/}
     volumes:
       - ./webapp/uploads:/app/webapp/uploads
-    labels:
-      - traefik.enable=true
-      - "traefik.http.routers.faturamentos.rule=Host(`${APP_HOST:-localhost}`) && PathPrefix(`${BASE_PATH:-/}`)"
-      - traefik.http.routers.faturamentos.entrypoints=http
-      - traefik.http.services.faturamentos.loadbalancer.server.port=8000
     healthcheck:
       test:
         - CMD-SHELL

@@ -739,7 +739,7 @@ class JobStore:
 
 
 store = JobStore()
-app = FastAPI(title="LogTudo Web API", version="1.0.0")
+app = FastAPI(title="LogTudo Web API", version="1.0.0", root_path=CLIENT_BASE_PATH)
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET", "change-me"),
@@ -764,6 +764,10 @@ def static_file(file_path: str) -> Response:
     media_type, _ = mimetypes.guess_type(str(full_path))
     return Response(content=data, media_type=media_type or "application/octet-stream")
 
+
+@app.get("/health")
+def health_check() -> Dict[str, str]:
+    return {"status": "ok"}
 
 def _render_index_html() -> str:
     html = (DIST_DIR / "index.html").read_text(encoding="utf-8")
