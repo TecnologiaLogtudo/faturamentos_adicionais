@@ -5,7 +5,7 @@ WORKDIR /frontend
 COPY webapp/static ./static
 RUN mkdir -p dist && cp -a static/. dist/
 
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
 
 # Define o diretório de trabalho no container
 WORKDIR /app
