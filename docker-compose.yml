@@ -18,6 +18,11 @@ services:
       - ADMIN_PASS=${ADMIN_PASS}
     volumes:
       - ./webapp/uploads:/app/webapp/uploads
+    labels:
+      - traefik.enable=true
+      - "traefik.http.routers.faturamentos.rule=Host(`${APP_HOST:-localhost}`)"
+      - traefik.http.routers.faturamentos.entrypoints=http
+      - traefik.http.services.faturamentos.loadbalancer.server.port=8000
     healthcheck:
       test:
         - CMD-SHELL
