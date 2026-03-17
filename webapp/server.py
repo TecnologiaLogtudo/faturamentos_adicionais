@@ -806,13 +806,13 @@ def favicon() -> Response:
     return Response(status_code=204)
 
 
-@app.get("/manual")
+@app.get("/manual-usuario")
 def manual_index() -> HTMLResponse:
     html = (MANUAL_DIR / "index.html").read_text(encoding="utf-8")
     return HTMLResponse(content=html)
 
 
-@app.get("/manual/{file_path:path}")
+@app.get("/manual-usuario/{file_path:path}")
 def manual_file(file_path: str) -> Response:
     full_path = MANUAL_DIR / file_path
     if not full_path.exists() or not full_path.is_file():
