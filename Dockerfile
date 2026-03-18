@@ -5,7 +5,7 @@ WORKDIR /frontend
 COPY webapp/static ./static
 RUN mkdir -p dist && cp -a static/. dist/
 
-FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
+FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
 
 # Define o diretório de trabalho no container
 WORKDIR /app
@@ -14,6 +14,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN playwright install chromium
+
 # Copia todo o restante do código para o container
 COPY . .
 
@@ -21,7 +23,7 @@ COPY . .
 COPY --from=frontend /frontend/dist /app/dist
 
 # Variáveis de ambiente úteis
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \ PYTHONDONTWRITEBYTECODE=1
 
 EXPOSE 8000
 
