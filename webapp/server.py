@@ -380,6 +380,15 @@ class JobRunner:
 
             def _on_response(resp):
                 try:
+                    if "/api/jobs" in resp.url:
+                        content_type = resp.headers.get("content-type")
+                        print("SSE DEBUG:", resp.url, resp.status, content_type)
+                        self._record_browser_log(
+                            "debug",
+                            f"SSE DEBUG: {resp.url} {resp.status} {content_type}",
+                            "network",
+                            resp.url,
+                        )
                     if resp.status >= 400:
                         self._record_browser_log(
                             "error",
@@ -758,8 +767,10 @@ app.add_middleware(
 @app.middleware("http")
 async def strip_base_path_middleware(request: Request, call_next):
     path = request.scope.get("path", "")
+    print("DEBUG PATH:", path)
     if APP_BASE_PATH != "/" and path.startswith(APP_BASE_PATH):
         request.scope["path"] = path[len(APP_BASE_PATH):]
+        print("DEBUG stripped path:", request.scope["path"])
         if not request.scope["path"]:
             request.scope["path"] = "/"
     return await call_next(request)
