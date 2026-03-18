@@ -6,7 +6,7 @@ COPY webapp/static ./static
 RUN mkdir -p dist && cp -a static/. dist/
 
 # Atualizado para a versão baseada no Ubuntu 24.04 (Noble) recomendada na documentação
-FROM mcr.microsoft.com/playwright/python:v1.58.2-noble
+FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
 
 # Define o diretório de trabalho no container
 WORKDIR /app
