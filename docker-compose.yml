@@ -21,7 +21,7 @@ services:
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_PASS=${ADMIN_PASS}
     volumes:
-      - ./webapp/uploads:/app/webapp/uploads
+      - uploads_data:/app/webapp/uploads
     healthcheck:
       test:
         - CMD-SHELL
@@ -50,3 +50,4 @@ services:
 
 volumes:
   pgdata:
+  uploads_data:

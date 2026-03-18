@@ -25,7 +25,8 @@ COPY --from=frontend /frontend/dist /app/dist
 
 # Conforme recomendado para Web Scraping/Crawling, ajustamos as permissões
 # e alternamos para o usuário não-root 'pwuser' para manter o sandbox do Chromium ativado
-RUN chown -R pwuser:pwuser /app
+RUN mkdir -p /app/webapp/uploads && \
+    chown -R pwuser:pwuser /app
 
 USER pwuser
 
