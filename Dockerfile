@@ -5,7 +5,8 @@ WORKDIR /frontend
 COPY webapp/static ./static
 RUN mkdir -p dist && cp -a static/. dist/
 
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+# Atualizado para a versão baseada no Ubuntu 24.04 (Noble) recomendada na documentação
+FROM mcr.microsoft.com/playwright/python:v1.58.2-noble
 
 # Define o diretório de trabalho no container
 WORKDIR /app
@@ -22,8 +23,15 @@ COPY . .
 # Copia o build do frontend para facilitar deploys que sirvam os assets estáticos
 COPY --from=frontend /frontend/dist /app/dist
 
+# Conforme recomendado para Web Scraping/Crawling, ajustamos as permissões
+# e alternamos para o usuário não-root 'pwuser' para manter o sandbox do Chromium ativado
+RUN chown -R pwuser:pwuser /app
+
+USER pwuser
+
 # Variáveis de ambiente úteis
-ENV PYTHONUNBUFFERED=1 \ PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 EXPOSE 8000
 

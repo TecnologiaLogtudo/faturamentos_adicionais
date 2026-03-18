@@ -7,6 +7,10 @@ services:
     restart: unless-stopped
     expose:
       - '8000'
+    init: true
+    ipc: host
+    security_opt:
+      - seccomp=seccomp_profile.json
     depends_on:
       db:
         condition: service_healthy
@@ -16,7 +20,6 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_PASS=${ADMIN_PASS}
-      - BASE_PATH=${BASE_PATH:-/}
     volumes:
       - ./webapp/uploads:/app/webapp/uploads
     healthcheck:
