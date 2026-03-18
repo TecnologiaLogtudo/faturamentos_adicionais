@@ -7,6 +7,11 @@ Gerencia inicialização e controle do navegador
 from playwright.sync_api import sync_playwright
 import logging
 
+try:
+    from playwright_stealth import stealth_sync
+except ImportError:  # pragma: no cover - optional dependency
+    stealth_sync = None
+
 
 class PlaywrightController:
     """Classe para controlar o navegador Playwright"""
@@ -43,10 +48,11 @@ class PlaywrightController:
                 ]
             )
             
-            # Criar contexto com User-Agent realista e headers
+            # Criar contexto com User-Agent realista, localidade e cabeçalhos
             context_args = {
                 "viewport": {"width": 1280, "height": 720},
                 "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "locale": "pt-BR",
                 "extra_http_headers": {
                     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -69,6 +75,28 @@ class PlaywrightController:
             
             self.page = self.context.new_page()
             
+            # Substituir EventSource para evitar conexões SSE externas
+            self.page.add_init_script("""
+                class MockEventSource {
+                    constructor(url, eventSourceInitDict) {
+                        this.url = url;
+                        this.eventSourceInitDict = eventSourceInitDict;
+                        this.readyState = 0;
+                        this._listeners = {};
+                    }
+                    addEventListener(type, listener) {
+                        this._listeners[type] = listener;
+                    }
+                    removeEventListener(type) {
+                        delete this._listeners[type];
+                    }
+                    close() {
+                        this.readyState = 2;
+                    }
+                }
+                window.EventSource = MockEventSource;
+            """)
+            
             # Ocultar sinais de automação via JavaScript
             self.page.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', {
@@ -87,6 +115,12 @@ class PlaywrightController:
                     runtime: {}
                 };
             """)
+
+            if stealth_sync:
+                try:
+                    stealth_sync(self.page)
+                except Exception:
+                    logging.debug("playwright-stealth falhou ao aplicar, continuando sem ele")
             
             self.page.set_default_timeout(timeout)
             self.page.set_default_navigation_timeout(timeout)
