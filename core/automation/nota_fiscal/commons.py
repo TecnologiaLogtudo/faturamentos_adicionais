@@ -525,11 +525,14 @@ class NotaFiscalCommonsMixin:
             page.locator(selector).scroll_into_view_if_needed()
             self.delay.custom(self.interaction_delay)
 
-            is_bahia = str(uf).strip().upper() == 'BA' if uf else False
+            uf_normalizada = str(uf).strip().upper() if uf else ""
+            is_bahia = uf_normalizada in ("BA", "BAHIA", "Bahia")
             senha_para_preencher = self._last_block_value(senha_ravex) if is_bahia else self._join_block_values(senha_ravex)
 
             if is_bahia:
-                self.gui.log(f"UF BA detectada: usando última Senha Ravex do bloco ({senha_para_preencher})")
+                self.gui.log(
+                    f"UF BA detectada ({uf_normalizada}): usando última Senha Ravex do bloco ({senha_para_preencher})"
+                )
             
             # Limpar campo
             page.fill(selector, '')
