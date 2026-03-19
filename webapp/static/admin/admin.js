@@ -438,6 +438,44 @@ async function selectJob(jobId) {
   await loadPanelData(getActiveTab(), jobId);
 }
 
+async function resetLogsWithConfirmation() {
+  const password = window.prompt("Confirme a senha para apagar todos os dados de log:");
+  if (password === null) {
+    return;
+  }
+  if (!password.trim()) {
+    showToast("Senha obrigatoria para reset", "error");
+    return;
+  }
+
+  await withLoading("btnResetLogs", async () => {
+    const res = await fetch(withBasePath("/api/admin/reset-logs"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const detail = data?.detail || "Nao foi possivel resetar os logs.";
+      showToast(detail, "error");
+      return;
+    }
+
+    selectedJobId = "";
+    jobMetaByFullId.clear();
+    fullIdByShortId.clear();
+    syncJobIdInputs("");
+    document.querySelectorAll("table tbody").forEach((tbody) => {
+      tbody.innerHTML = "";
+    });
+
+    await loadSummary();
+    await loadJobs();
+    showToast("Historico de logs apagado com sucesso", "success");
+  });
+}
+
 qs("statusFilter").addEventListener("change", loadJobs);
 qs("btnLoadActions").addEventListener("click", async () => {
   await withLoading("btnLoadActions", async () => {
@@ -481,6 +519,7 @@ qs("btnRefresh").addEventListener("click", async () => {
     showToast("Painel atualizado", "success");
   });
 });
+qs("btnResetLogs")?.addEventListener("click", resetLogsWithConfirmation);
 
 jobIdInputs.forEach((inputId, idx) => {
   const input = qs(inputId);

@@ -185,8 +185,8 @@ def process_accumulated(header_row, data_rows, sum_row, all_data, sheet_name="?"
         return ", ".join(valid_vals)
 
     nf_val = _all_non_empty(actual_data[col_nf]) if col_nf else ""
-    ravex_val = _last_non_empty(actual_data[col_id]) if col_id else ""
-    transp_val = _last_non_empty(actual_data[col_transp]) if col_transp else ""
+    ravex_val = _all_non_empty(actual_data[col_id]) if col_id else ""
+    transp_val = _all_non_empty(actual_data[col_transp]) if col_transp else ""
     tipo_val = _last_non_empty(actual_data[col_tipo_custo]) if col_tipo_custo else ""
 
     all_data.append({

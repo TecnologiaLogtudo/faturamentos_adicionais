@@ -16,6 +16,8 @@ import asyncio
 import sys
 import unicodedata
 import mimetypes
+import shutil
+import hmac
 from contextlib import contextmanager
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -70,6 +72,7 @@ if APP_BASE_PATH != "/" and APP_BASE_PATH.endswith("/"):
     APP_BASE_PATH = APP_BASE_PATH.rstrip("/")
 CLIENT_BASE_PATH = "" if APP_BASE_PATH == "/" else APP_BASE_PATH
 ADMIN_ROUTE = "/logs-FaturamentosAdicionais"
+RESET_LOGS_PASSWORD = os.getenv("LOG_RESET_PASSWORD") or os.getenv("ADMIN_PASS") or ""
 
 
 def _parse_env_bool(value: Optional[str], default: bool = True) -> bool:
@@ -1425,6 +1428,51 @@ def admin_delete_artifact(request: Request, artifact_id: str):
             pass
         db.delete(artifact)
         db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/admin/reset-logs")
+def admin_reset_logs(request: Request, payload: Dict[str, Any]):
+    _require_admin(request)
+    if not RESET_LOGS_PASSWORD:
+        raise HTTPException(status_code=503, detail="Senha de reset nao configurada no ambiente")
+
+    password = str(payload.get("password") or "")
+    if not hmac.compare_digest(password, RESET_LOGS_PASSWORD):
+        raise HTTPException(status_code=401, detail="Senha de confirmacao invalida")
+
+    if any(job.is_running for job in store.jobs.values()):
+        raise HTTPException(status_code=409, detail="Existe automacao em execucao. Pare antes de resetar os logs.")
+
+    with SessionLocal() as db:
+        artifacts = db.query(JobArtifact).all()
+        for artifact in artifacts:
+            artifact_path = _resolve_artifact_disk_path(artifact.file_path, artifact.job_id)
+            if artifact_path:
+                try:
+                    artifact_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        db.query(BrowserLog).delete(synchronize_session=False)
+        db.query(JobArtifact).delete(synchronize_session=False)
+        db.query(JobError).delete(synchronize_session=False)
+        db.query(JobStep).delete(synchronize_session=False)
+        db.query(JobAction).delete(synchronize_session=False)
+        db.query(JobRun).delete(synchronize_session=False)
+        db.commit()
+
+    try:
+        if ARTIFACTS_DIR.exists():
+            for item in ARTIFACTS_DIR.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    item.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    store.jobs.clear()
     return {"status": "ok"}
 
 # O fallback final: monta toda a pasta dist na raiz para servir assets do frontend (JS, CSS, Imagens, etc.)

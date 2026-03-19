@@ -356,6 +356,19 @@ th {
   color: var(--text-muted);
 }
 
+.btn.subtle {
+  background: transparent;
+  border-color: rgba(217, 83, 79, 0.28);
+  color: rgba(255, 182, 182, 0.92);
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+.btn.subtle:hover {
+  border-color: rgba(217, 83, 79, 0.48);
+  color: #ffd6d6;
+}
+
 .nav-link {
   text-decoration: none;
   display: block;
