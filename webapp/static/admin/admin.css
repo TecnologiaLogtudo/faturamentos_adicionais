@@ -1,10 +1,15 @@
 :root {
   --blue: #2b6cb0;
+  --blue-strong: #1b3d6d;
+  --grafite: #11151d;
+  --grafite-2: #1b2230;
   --surface: #202838;
   --surface-2: #242f42;
   --text: #f3f6fb;
   --text-muted: #9aa7c2;
+  --alert: #f7b733;
   --danger: #d9534f;
+  --success: #47c996;
   --border: rgba(255, 255, 255, 0.08);
   --radius: 16px;
   --shadow: 0 20px 50px rgba(10, 15, 25, 0.35);
@@ -16,28 +21,78 @@
 
 .admin-body {
   margin: 0;
-  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-family: "IBM Plex Sans", sans-serif;
   background: radial-gradient(circle at top left, #1d2b4b, #0e131c 45%, #0b1018);
   color: var(--text);
   min-height: 100vh;
 }
 
-.admin-app {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px 24px 64px;
+.admin-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+.admin-sidebar {
+  background: linear-gradient(160deg, #0f1624, #141c2c);
+  border-right: 1px solid var(--border);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--blue), #4a90e2);
+  display: grid;
+  place-items: center;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+}
+
+.brand-title {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.brand-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sidebar-footer {
+  margin-top: auto;
+}
+
+.admin-main {
+  padding: 24px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .admin-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  gap: 16px;
+  margin-bottom: 6px;
 }
 
 .admin-title {
-  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: 28px;
+  margin: 0;
 }
 
 .admin-subtitle {
@@ -53,19 +108,19 @@
 
 .admin-tabs {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .tab {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text);
+  padding: 12px 14px;
   border-radius: 12px;
-  padding: 10px 16px;
-  cursor: pointer;
+  text-align: left;
   font-size: 14px;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
@@ -79,27 +134,31 @@
 .panel {
   display: none;
   background: var(--surface);
-  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-radius: 16px;
   padding: 18px;
   box-shadow: var(--shadow);
-  border: 1px solid var(--border);
-  margin-bottom: 20px;
+  min-width: 0;
 }
 
 .panel.active {
   display: block;
+  animation: fadeIn 0.25s ease;
 }
 
 .panel-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
 }
 
 .panel-header h2 {
   margin: 0;
-  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 18px;
 }
 
 .panel-header input,
@@ -113,8 +172,11 @@
 
 .table-wrap {
   overflow-x: auto;
+  overflow-y: auto;
   border-radius: 12px;
   border: 1px solid var(--border);
+  max-width: 100%;
+  max-height: 420px;
 }
 
 table {
@@ -142,7 +204,7 @@ th {
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -177,6 +239,10 @@ th {
   transition: all 0.2s ease;
 }
 
+.btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 .btn.primary {
   background: var(--blue);
   border-color: transparent;
@@ -186,6 +252,12 @@ th {
   background: transparent;
   border-color: var(--border);
   color: var(--text-muted);
+}
+
+.nav-link {
+  text-decoration: none;
+  display: block;
+  text-align: center;
 }
 
 .login-card {
@@ -199,7 +271,7 @@ th {
 }
 
 .login-title {
-  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: 1.5rem;
   margin-bottom: 8px;
 }
@@ -227,10 +299,50 @@ th {
   font-size: 13px;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1200px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+  .admin-sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .admin-tabs {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .tab {
+    text-align: center;
+  }
+  .admin-main {
+    padding: 18px;
+  }
+}
+
 @media (max-width: 700px) {
   .admin-topbar {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+  .kpi-grid {
+    grid-template-columns: 1fr;
   }
 }

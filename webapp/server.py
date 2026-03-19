@@ -820,6 +820,10 @@ def _render_index_html() -> str:
 def _render_admin_html() -> str:
     html = (ADMIN_DIR / "index.html").read_text(encoding="utf-8")
     html = html.replace(BASE_PATH_PLACEHOLDER, json.dumps(CLIENT_BASE_PATH))
+    base = CLIENT_BASE_PATH if CLIENT_BASE_PATH else ""
+    admin_base = f"{base}{ADMIN_ROUTE}"
+    html = html.replace('href="./', f'href="{admin_base}/')
+    html = html.replace('src="./', f'src="{admin_base}/')
     return html
 
 

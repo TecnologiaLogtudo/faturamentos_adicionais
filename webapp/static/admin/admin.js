@@ -9,6 +9,11 @@ const withBasePath = (path) => {
   return `${BASE_PATH}/${trimmed}`;
 };
 
+const backHomeLink = qs("backHomeLink");
+if (backHomeLink) {
+  backHomeLink.href = withBasePath("/");
+}
+
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
 
