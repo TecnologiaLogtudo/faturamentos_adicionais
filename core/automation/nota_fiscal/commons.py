@@ -7,6 +7,51 @@ Mantém utilidades e etapas reutilizadas em múltiplos caminhos.
 class NotaFiscalCommonsMixin:
     """Métodos do workflow para NotaFiscalCommonsMixin."""
 
+    def _split_block_values(self, raw_value):
+        """Normaliza valores de bloco em lista única (aceita vírgula, ; e quebra de linha)."""
+        if raw_value is None:
+            return []
+
+        text = str(raw_value).strip()
+        if not text:
+            return []
+
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        for sep in [';', '\n', '|']:
+            normalized = normalized.replace(sep, ',')
+
+        parts = [p.strip() for p in normalized.split(',')]
+
+        result = []
+        seen = set()
+        for item in parts:
+            if not item:
+                continue
+
+            clean = item[:-2] if item.endswith('.0') else item
+            key = clean.lower()
+            if key in seen:
+                continue
+
+            seen.add(key)
+            result.append(clean)
+
+        return result
+
+
+    def _join_block_values(self, raw_value):
+        values = self._split_block_values(raw_value)
+        if not values:
+            return ""
+        return ", ".join(values)
+
+
+    def _last_block_value(self, raw_value):
+        values = self._split_block_values(raw_value)
+        if not values:
+            return ""
+        return values[-1]
+
     def check_pause(self):
         """Verifica e gerencia o estado de pausa da automação"""
         if hasattr(self.gui, 'state'):
@@ -410,11 +455,12 @@ class NotaFiscalCommonsMixin:
             raise Exception(f"Erro ao preencher Frete Valor: {str(e)}")
 
 
-    def preencher_senha_ravex(self, page, senha_ravex):
+    def preencher_senha_ravex(self, page, senha_ravex, uf=None):
         """
         Etapa 9: Preenche Senha Ravex
         Campo: <input name="dados_tagsCTe[ravex]">
         Valor: Da coluna "Senha Ravex"
+        Regra BA: usa apenas o último valor do bloco
         """
         if not self._set_tag("preencher_senha_ravex"):
             return
@@ -424,16 +470,25 @@ class NotaFiscalCommonsMixin:
 
         try:
             selector = 'input[name="dados_tagsCTe[ravex]"]'
-            page.wait_for_selector(selector, state='visible', timeout=5000)
+            page.wait_for_selector(selector, state='visible', timeout=15000)
             page.locator(selector).scroll_into_view_if_needed()
             self.delay.custom(self.interaction_delay)
+
+            is_bahia = str(uf).strip().upper() == 'BA' if uf else False
+            senha_para_preencher = self._last_block_value(senha_ravex) if is_bahia else self._join_block_values(senha_ravex)
+
+            if is_bahia:
+                self.gui.log(f"UF BA detectada: usando última Senha Ravex do bloco ({senha_para_preencher})")
             
             # Limpar campo
             page.fill(selector, '')
             self.delay.custom(self.interaction_delay // 2)
             
             # Preencher com senha
-            page.locator(selector).type(str(senha_ravex), delay=self.typing_delay)
+            try:
+                page.fill(selector, str(senha_para_preencher), timeout=90000)
+            except Exception:
+                page.locator(selector).type(str(senha_para_preencher), delay=self.typing_delay, timeout=90000)
             
             self.gui.log(f"✓ Senha Ravex preenchida")
             self.delay.custom(self.interaction_delay * 1.5)
@@ -459,19 +514,30 @@ class NotaFiscalCommonsMixin:
 
         try:
             selector = 'textarea[name="dados_observacaoConhecimento"]'
-            page.wait_for_selector(selector, state='visible', timeout=5000)
+            page.wait_for_selector(selector, state='visible', timeout=15000)
             page.locator(selector).scroll_into_view_if_needed()
             self.delay.custom(self.interaction_delay)
             
             # Construir observação formatada
-            observacao = f"Referente {tipo_adc} NF {nota_fiscal}\nSenha {senha_ravex}\nTransporte {transporte}"
+            nota_fiscal_texto = self._join_block_values(nota_fiscal)
+            senha_ravex_texto = self._join_block_values(senha_ravex)
+            transporte_texto = self._join_block_values(transporte)
+
+            observacao = (
+                f"Referente {tipo_adc} NF {nota_fiscal_texto}\n"
+                f"Senha {senha_ravex_texto}\n"
+                f"Transporte {transporte_texto}"
+            )
             
             # Limpar campo
             page.fill(selector, '')
             self.delay.custom(self.interaction_delay // 2)
             
             # Preencher observação
-            page.locator(selector).type(observacao, delay=self.typing_delay)
+            try:
+                page.fill(selector, observacao, timeout=90000)
+            except Exception:
+                page.locator(selector).type(observacao, delay=self.typing_delay, timeout=90000)
             
             self.gui.log(f"✓ Observação Conhecimento preenchida")
             self.delay.custom(self.interaction_delay * 1.5)

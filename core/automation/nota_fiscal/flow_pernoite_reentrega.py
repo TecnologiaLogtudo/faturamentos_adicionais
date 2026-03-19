@@ -56,7 +56,7 @@ class NotaFiscalPernoiteReentregaMixin:
             self.preencher_tipo_carga(page)
             
             self.preencher_frete_valor(page, valor_cte)
-            self.preencher_senha_ravex(page, senha_ravex)
+            self.preencher_senha_ravex(page, senha_ravex, uf)
             self.preencher_observacao_conhecimento(page, tipo_adc, nota_fiscal, senha_ravex, transporte)
             
             # Substituído 'clicar_avancar_final' por 'salvar_formulario' para evitar ir para contratos

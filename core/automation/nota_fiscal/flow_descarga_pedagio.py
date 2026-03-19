@@ -61,7 +61,7 @@ class NotaFiscalDescargaPedagioMixin:
             self.preencher_frete_valor(page, valor_cte)
 
             # Etapa 9: Preencher Senha Ravex
-            self.preencher_senha_ravex(page, senha_ravex)
+            self.preencher_senha_ravex(page, senha_ravex, uf)
 
             # Etapa 10: Preencher Observação Conhecimento
             self.preencher_observacao_conhecimento(page, tipo_adc, nota_fiscal, senha_ravex, transporte)
