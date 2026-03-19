@@ -103,41 +103,60 @@ def process_accumulated(header_row, data_rows, sum_row, all_data, sheet_name="?"
         elif any(v == "NF" for v in doc_values):
             codigo_imposto = "IT"
             
-    # Regra 1 e 2: Sempre prioriza a coluna "Valor sem imposto" (com fallback de segurança)
+    # Sempre prioriza a coluna "Valor sem imposto" (com fallback de segurança)
     valor_col = col_v_sem if col_v_sem else col_v_com
 
+    # Regras de prioridade para Valor TT CTe:
+    # 1) Se houver linha de somatório/total, usa o valor dessa linha.
+    #    - Pode vir via sum_row detectada no parser
+    #    - Ou via linha com ID vazio e valor numérico na coluna de valor
+    # 2) Sem total: se houver mais de uma linha de detalhe, soma os valores
+    # 3) Sem total e com apenas uma linha de detalhe: usa o último valor válido
     val_tt = 0.0
-    if sum_row is not None:
+    if valor_col:
         try:
-            col_idx = list(temp_df.columns).index(valor_col)
-            val_tt = clean_numeric(sum_row.iloc[col_idx])
-        except: val_tt = 0.0
-    
-    if val_tt == 0:
-        if valor_col:
-            try:
-                series_vals = actual_data[valor_col]
-                valid_values = []
-                for v in list(series_vals.values):
-                    if pd.isna(v):
-                        continue
-                    s = str(v).strip()
-                    if not s or s.lower() in ["nan", "none"]:
-                        continue
-                    num_val = clean_numeric(v)
-                    if num_val != 0:
-                        valid_values.append(num_val)
-                
-                if len(valid_values) > 1:
-                    # Regra de extração 2: Somatório se houver mais de um valor
-                    val_tt = sum(valid_values)
-                elif len(valid_values) == 1:
-                    # Regra de extração 3: Último valor válido
-                    val_tt = valid_values[-1]
+            detail_values = []
+            total_values = []
+
+            id_series = actual_data[col_id]
+            value_series = actual_data[valor_col]
+
+            for id_val, raw_val in zip(id_series.values, value_series.values):
+                num_val = clean_numeric(raw_val)
+                if num_val == 0:
+                    continue
+
+                id_str = "" if pd.isna(id_val) else str(id_val).strip().lower()
+                id_vazio = id_str in ["", "nan", "none"]
+
+                if id_vazio:
+                    total_values.append(num_val)
                 else:
-                    val_tt = 0.0
-            except Exception:
-                val_tt = 0.0
+                    detail_values.append(num_val)
+
+            # Regra 1.a: total detectado fora do bloco de dados (sum_row)
+            if sum_row is not None:
+                try:
+                    col_idx = list(temp_df.columns).index(valor_col)
+                    sum_row_val = clean_numeric(sum_row.iloc[col_idx])
+                    if sum_row_val != 0:
+                        val_tt = sum_row_val
+                except Exception:
+                    pass
+
+            # Regra 1.b: total detectado dentro do bloco (ID vazio)
+            if val_tt == 0 and total_values:
+                val_tt = total_values[-1]
+
+            # Regra 2: somar detalhes se houver mais de um
+            if val_tt == 0 and len(detail_values) > 1:
+                val_tt = sum(detail_values)
+
+            # Regra 3: último valor válido de detalhe
+            if val_tt == 0 and len(detail_values) == 1:
+                val_tt = detail_values[-1]
+        except Exception:
+            val_tt = 0.0
 
     # Garantir 2 casas decimais no Valor TT CTe
     try:
