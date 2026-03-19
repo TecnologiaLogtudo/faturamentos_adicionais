@@ -1,10 +1,3 @@
-# Usa a imagem oficial do Playwright (versão equivalente a que você usa no package.json)
-# Isso evita erros de "biblioteca compartilhada ausente" ao abrir o Chromium.
-FROM node:20-alpine AS frontend
-WORKDIR /frontend
-COPY webapp/static ./static
-RUN mkdir -p dist && cp -a static/. dist/
-
 # Atualizado para a versão baseada no Ubuntu 24.04 (Noble) recomendada na documentação
 FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
 
@@ -20,8 +13,8 @@ RUN playwright install chromium
 # Copia todo o restante do código para o container
 COPY . .
 
-# Copia o build do frontend para facilitar deploys que sirvam os assets estáticos
-COPY --from=frontend /frontend/dist /app/dist
+# Copia os assets estáticos do frontend sem depender de estágio Node
+RUN mkdir -p /app/dist && cp -a /app/webapp/static/. /app/dist/
 
 # Conforme recomendado para Web Scraping/Crawling, ajustamos as permissões
 # e alternamos para o usuário não-root 'pwuser' para manter o sandbox do Chromium ativado

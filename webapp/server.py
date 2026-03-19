@@ -762,6 +762,30 @@ class JobStore:
         self.jobs: Dict[str, Job] = {}
         self.files: Dict[str, Dict[str, Any]] = {}
 
+    def _normalize_header(self, value: Any) -> str:
+        text = str(value or "").strip().lower()
+        text = text.replace("º", "o").replace("°", "o")
+        text = text.replace("_", " ")
+        text = " ".join(text.split())
+        return text
+
+    def _find_cte_output_index(self, headers: List[Any]) -> int:
+        # Prioriza o nome oficial da coluna.
+        preferred = "no cte"
+        aliases = {"numero cte", "cte", "nocte"}
+
+        normalized_headers = [self._normalize_header(h) for h in headers]
+
+        for idx, header in enumerate(normalized_headers):
+            if header == preferred:
+                return idx
+
+        for idx, header in enumerate(normalized_headers):
+            if header in aliases:
+                return idx
+
+        return -1
+
     def create_file(self, file_path: Path, uf: str | None = None) -> Dict[str, Any]:
         reader = ExcelReader()
         data = reader.read(str(file_path), uf=uf)
@@ -797,7 +821,13 @@ class JobStore:
         job.treated_file_path = file_data.get("treated_path", "")
         job.headers = file_data["headers"]
         job.data = file_data["data"]
-        job.column_mapping = payload["column_mapping"]
+        column_mapping = dict(payload["column_mapping"])
+        cte_output_idx = self._find_cte_output_index(file_data.get("headers", []))
+        if cte_output_idx == -1:
+            raise ValueError("Coluna obrigatória 'Nº CTE' não encontrada na planilha.")
+        column_mapping["cte_output"] = cte_output_idx
+
+        job.column_mapping = column_mapping
         job.execute_envios = payload.get("execute_envios", True)
         job.settings = payload["settings"]
         job.settings_snapshot = payload.get("settings_snapshot", {})
