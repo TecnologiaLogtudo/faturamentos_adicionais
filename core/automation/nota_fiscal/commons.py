@@ -405,15 +405,66 @@ class NotaFiscalCommonsMixin:
         self.delay.custom(self.interaction_delay * 1.5)
 
         try:
-            selector = 'i[name="botaoPesquisa_cfops_id"]'
-            page.wait_for_selector(selector, state='visible', timeout=5000)
-            page.locator(selector).scroll_into_view_if_needed()
+            selector_btn = 'i[name="botaoPesquisa_cfops_id"]'
+            selector_cfop = 'select[name="dados_cfops_id"]'
+
+            page.wait_for_selector(selector_btn, state='visible', timeout=15000)
+            page.locator(selector_btn).scroll_into_view_if_needed()
             self.delay.custom(self.interaction_delay)
-            page.click(selector, force=True)
-            
-            self.gui.log(f"✓ Botão Pesquisar (Natureza) clicado")
-            self.delay.custom(self.network_delay)  # Aguardar resposta
-            self.steps.append("Pesquisou Natureza da Operação")
+
+            def _cfop_carregado():
+                return page.evaluate('''() => {
+                    const sel = document.querySelector('select[name="dados_cfops_id"]');
+                    if (!sel) return false;
+
+                    const hasNonEmptyOption = Array.from(sel.options || []).some(opt =>
+                        (opt.value || '').toString().trim() !== '' &&
+                        (opt.textContent || '').toString().trim() !== ''
+                    );
+                    const hasSelectedValue = (sel.value || '').toString().trim() !== '';
+
+                    return hasNonEmptyOption || hasSelectedValue;
+                }''')
+
+            clicked = False
+            for tentativa in range(1, 4):
+                try:
+                    page.locator(selector_btn).click(force=True, timeout=7000)
+                    clicked = True
+                    self.gui.log(f"Clique no botão Pesquisar (Natureza) realizado (tentativa {tentativa})")
+                except Exception as click_error:
+                    self.gui.log(
+                        f"Falha no clique padrão (tentativa {tentativa}): {click_error}. Tentando JavaScript.",
+                        level="warning"
+                    )
+                    try:
+                        page.evaluate('document.querySelector(\'i[name="botaoPesquisa_cfops_id"]\')?.click()')
+                        clicked = True
+                        self.gui.log(f"Clique via JavaScript realizado (tentativa {tentativa})")
+                    except Exception as js_error:
+                        self.gui.log(f"Falha no clique via JavaScript (tentativa {tentativa}): {js_error}", level="warning")
+
+                if not clicked:
+                    continue
+
+                try:
+                    page.wait_for_selector(selector_cfop, state='visible', timeout=10000)
+                except Exception:
+                    pass
+
+                self.delay.custom(self.network_delay)
+                if _cfop_carregado():
+                    self.gui.log("✓ Botão Pesquisar (Natureza) confirmado por carregamento do campo Natureza da Operação")
+                    self.steps.append("Pesquisou Natureza da Operação")
+                    return
+
+                self.gui.log(
+                    f"Botão clicado, mas campo Natureza ainda sem valor/opções válidas (tentativa {tentativa}).",
+                    level="warning"
+                )
+                self.delay.custom(self.interaction_delay)
+
+            raise Exception("Clique em Pesquisar (Natureza) não confirmou carregamento do campo dados_cfops_id após 3 tentativas.")
             
         except Exception as e:
             raise Exception(f"Erro ao clicar Pesquisar (Natureza): {str(e)}")
