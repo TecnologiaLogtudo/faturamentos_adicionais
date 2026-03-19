@@ -42,7 +42,7 @@ class NotaFiscalDescargaPedagioMixin:
             self.select_talao(page)
 
             # Etapa 3: Preencher Identificação do Pedido (Descarga ou Pedagio)
-            self.fill_identificacao_pedido(page, tipo_adc)
+            self.fill_identificacao_pedido(page, tipo_adc, uf)
 
             # Etapa 4: Selecionar Tipo de CT-e (Complemento de valores)
             self.select_tipo_cte_complemento(page)
@@ -89,30 +89,17 @@ class NotaFiscalDescargaPedagioMixin:
             raise Exception(f"Erro ao processar {tipo_adc}: {str(e)}")
 
 
-    def fill_identificacao_pedido(self, page, tipo_adc):
+    def fill_identificacao_pedido(self, page, tipo_adc, uf):
         """
         Etapa 3: Preenche Identificação do Pedido
         Elemento: <input name="dados_complementoPedido">
-        Lógica: Descarga -> Descarga, Pedagio -> Pedagio
         """
         if not self._set_tag("fill_identificacao_pedido"):
             return
         self.gui.log("Etapa 3: Preenchendo Identificação do Pedido...")
 
-        # Determinar valor baseado no tipo_adc
-        valor = ""
-        tipo_lower = tipo_adc.lower()
-        if tipo_lower.startswith("descarga"):
-            valor = "Descarga"
-        elif tipo_lower.startswith("pedagio"):
-            valor = "Pedagio"
-        elif tipo_lower.startswith("pernoite") or tipo_lower.startswith("diaria") or tipo_lower.startswith("diária"):
-            valor = "DIARIA NO CLIENTE"
-        elif tipo_lower.startswith("reentrega"):
-            valor = "REENTREGA"
-        else:
-            valor = tipo_adc # Fallback para o valor original
-            self.gui.log(f"Tipo ADC '{tipo_adc}' não é padrão, usando valor original.", level="warning")
+        # Determinar valor usando a regra de negócios centralizada
+        valor = self.determinar_identificacao_pedido(tipo_adc, uf)
 
         try:
             selector = 'input[name="dados_complementoPedido"]'

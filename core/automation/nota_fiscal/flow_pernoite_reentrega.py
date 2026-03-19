@@ -28,15 +28,8 @@ class NotaFiscalPernoiteReentregaMixin:
             self.select_talao(page)
 
             # Etapa 3: Identificação do Pedido (Mapeamento Específico)
-            # PERNOITE > DIARIA NO CLIENTE
-            # REENTREGA > REENTREGA (Assumido padrão)
-            identificacao = "REENTREGA"
-            tipo_lower = tipo_adc.lower()
-            if tipo_lower.startswith("pernoite") or tipo_lower.startswith("diaria") or tipo_lower.startswith("diária"):
-                identificacao = "DIARIA NO CLIENTE"
-            elif tipo_lower.startswith("reentrega"):
-                identificacao = "REENTREGA"
-            
+            identificacao = self.determinar_identificacao_pedido(tipo_adc, uf)
+
             self.fill_identificacao_custom(page, identificacao)
 
             # Etapa 4: Tipo de CT-e

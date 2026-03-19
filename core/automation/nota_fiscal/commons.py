@@ -171,6 +171,33 @@ class NotaFiscalCommonsMixin:
             raise Exception(f"Erro ao selecionar talão (Etapa 2): {str(e)}")
 
 
+    def determinar_identificacao_pedido(self, tipo_adc, uf):
+        """
+        Determina o texto a ser preenchido na Identificação do Pedido.
+        Centraliza a regra de negócio e separa a lógica da Bahia (BA) das demais UFs.
+        """
+        # 1. Regra prioritária para a Bahia (BA)
+        if uf and str(uf).strip().upper() == 'BA':
+            return "DESPESAS ADICIONAIS"
+
+        # 2. Regras gerais para as demais UFs
+        tipo_lower = str(tipo_adc).lower() if tipo_adc else ""
+        
+        if tipo_lower.startswith("descarga"):
+            return "Descarga"
+        elif tipo_lower.startswith("pedagio"):
+            return "Pedagio"
+        elif tipo_lower.startswith("pernoite") or tipo_lower.startswith("diaria") or tipo_lower.startswith("diária"):
+            return "DIARIA NO CLIENTE"
+        elif tipo_lower.startswith("reentrega"):
+            return "REENTREGA"
+        else:
+            fallback_val = tipo_adc if tipo_adc else "REENTREGA"
+            if tipo_adc:
+                self.gui.log(f"Tipo ADC '{tipo_adc}' não mapeado por padrão. Usando valor original: {fallback_val}", level="warning")
+            return fallback_val
+
+
     def fill_identificacao_custom(self, page, valor):
         """Preenche Identificação do Pedido com valor customizado"""
         if not self._set_tag("fill_identificacao_custom"):
