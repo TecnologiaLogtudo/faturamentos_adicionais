@@ -25,7 +25,7 @@ class NotaFiscalStepEnviosMixin:
                 // Encontrar a última célula que contém apenas dígitos (ignorando cabeçalhos)
                 for (const cell of noCells) {
                     const text = cell.textContent.trim();
-                    if (/^\d+$/.test(text)) {
+                    if (/^\\d+$/.test(text)) {
                         lastNumericCell = cell;
                     }
                 }
@@ -95,7 +95,7 @@ class NotaFiscalStepEnviosMixin:
                 // Encontrar a última célula que contém apenas dígitos (ignorando cabeçalhos)
                 for (const cell of noCells) {
                     const text = cell.textContent.trim();
-                    if (/^\d+$/.test(text)) {
+                    if (/^\\d+$/.test(text)) {
                         lastNumericCell = cell;
                     }
                 }

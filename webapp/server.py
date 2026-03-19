@@ -88,9 +88,27 @@ PLAYWRIGHT_HEADLESS = _parse_env_bool(os.getenv("PLAYWRIGHT_HEADLESS"), default=
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
+def _ensure_writable_dir(primary: Path, fallback: Path, label: str) -> Path:
+    try:
+        primary.mkdir(parents=True, exist_ok=True)
+        probe = primary / ".write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return primary
+    except Exception as exc:
+        print(f"[startup] sem permissao para {label} em {primary}: {exc}")
+        fallback.mkdir(parents=True, exist_ok=True)
+        probe = fallback / ".write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        print(f"[startup] usando fallback de {label}: {fallback}")
+        return fallback
+
+
+UPLOAD_DIR = _ensure_writable_dir(UPLOAD_DIR, Path("/tmp/logtudo/uploads"), "uploads")
+EXPORT_DIR = _ensure_writable_dir(EXPORT_DIR, Path("/tmp/logtudo/exports"), "exports")
+ARTIFACTS_DIR = _ensure_writable_dir(ARTIFACTS_DIR, EXPORT_DIR / "jobs", "artifacts")
 ADMIN_DIR.mkdir(parents=True, exist_ok=True)
 
 
