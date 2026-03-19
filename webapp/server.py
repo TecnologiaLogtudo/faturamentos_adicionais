@@ -168,6 +168,8 @@ class Job:
     execute_envios: bool = False
     file_id: str = ""
     file_path: str = ""
+    file_source_path: str = ""
+    treated_file_path: str = ""
     headers: List[str] = field(default_factory=list)
     data: List[List[Any]] = field(default_factory=list)
     settings: Dict[str, Any] = field(default_factory=dict)
@@ -304,6 +306,26 @@ class JobRunner:
                     type=log_type,
                 )
             )
+
+    def _record_result_spreadsheet_artifacts(self) -> None:
+        if not self.job.file_path:
+            return
+        try:
+            final_path = Path(self.job.file_path).resolve()
+            if final_path.exists() and final_path.is_file():
+                self._record_artifact("planilha_preenchida", str(final_path))
+        except Exception:
+            pass
+
+        try:
+            uf = str(self.job.settings.get("uf") or "").strip().lower()
+            treated_path = str(self.job.treated_file_path or "").strip()
+            if uf == "bahia" and treated_path:
+                resolved = Path(treated_path).resolve()
+                if resolved.exists() and resolved.is_file():
+                    self._record_artifact("planilha_tratada_ba", str(resolved))
+        except Exception:
+            pass
 
     @contextmanager
     def step(self, name: str, metadata: Optional[Dict[str, Any]] = None):
@@ -671,6 +693,7 @@ class JobRunner:
                 pass
             self.job.is_running = False
             self._save_spreadsheet_final()
+            self._record_result_spreadsheet_artifacts()
             self._update_progress()
             try:
                 artifacts_dir = ARTIFACTS_DIR / self.job.id
@@ -742,10 +765,15 @@ class JobStore:
     def create_file(self, file_path: Path, uf: str | None = None) -> Dict[str, Any]:
         reader = ExcelReader()
         data = reader.read(str(file_path), uf=uf)
+        selected_path = data.get("file_info", {}).get("full_path", str(file_path))
+        source_path = str(file_path)
+        treated_path = selected_path if selected_path != source_path else ""
         file_id = str(uuid.uuid4())
         file_payload = {
             "id": file_id,
-            "path": data.get("file_info", {}).get("full_path", str(file_path)),
+            "path": selected_path,
+            "source_path": source_path,
+            "treated_path": treated_path,
             "headers": data["headers"],
             "data": data["data"],
             "file_info": data["file_info"],
@@ -765,6 +793,8 @@ class JobStore:
         job.file_id = payload["file_id"]
         file_data = self.get_file(job.file_id)
         job.file_path = file_data["path"]
+        job.file_source_path = file_data.get("source_path", "")
+        job.treated_file_path = file_data.get("treated_path", "")
         job.headers = file_data["headers"]
         job.data = file_data["data"]
         job.column_mapping = payload["column_mapping"]
@@ -1197,6 +1227,123 @@ def export_results(job_id: str, payload: Dict[str, Any]) -> FileResponse:
         db.commit()
 
     return FileResponse(export_path)
+
+
+RESULT_SPREADSHEET_TYPES = ("planilha_preenchida", "planilha_tratada_ba")
+
+
+@app.get("/api/results/files")
+def list_results_files(limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+    with SessionLocal() as db:
+        artifacts = (
+            db.query(JobArtifact)
+            .filter(JobArtifact.type.in_(RESULT_SPREADSHEET_TYPES))
+            .order_by(JobArtifact.created_at.desc())
+            .offset(max(offset, 0))
+            .limit(min(max(limit, 1), 500))
+            .all()
+        )
+
+        items = []
+        for artifact in artifacts:
+            job = db.get(JobRun, artifact.job_id) if artifact.job_id else None
+            resolved = _resolve_artifact_disk_path(artifact.file_path, artifact.job_id)
+            file_name = Path(artifact.file_path).name if artifact.file_path else "arquivo"
+            uf = ""
+            if job and isinstance(job.settings_snapshot, dict):
+                uf = str(job.settings_snapshot.get("uf") or "")
+
+            items.append(
+                {
+                    "id": artifact.id,
+                    "job_id": artifact.job_id,
+                    "job_status": job.status if job else "",
+                    "job_started_at": job.started_at if job else None,
+                    "uf": uf,
+                    "type": artifact.type,
+                    "file_name": file_name,
+                    "file_path": artifact.file_path,
+                    "created_at": artifact.created_at,
+                    "available": bool(resolved),
+                }
+            )
+        return {"items": items}
+
+
+@app.get("/api/results/files/{artifact_id}/download")
+def download_results_file(artifact_id: str) -> FileResponse:
+    with SessionLocal() as db:
+        artifact = db.get(JobArtifact, artifact_id)
+        if not artifact:
+            raise HTTPException(status_code=404, detail="Arquivo nao encontrado")
+        if artifact.type not in RESULT_SPREADSHEET_TYPES:
+            raise HTTPException(status_code=400, detail="Tipo de arquivo invalido para este endpoint")
+
+    artifact_path = _resolve_artifact_disk_path(artifact.file_path, artifact.job_id)
+    if not artifact_path:
+        raise HTTPException(status_code=404, detail="Arquivo do resultado nao encontrado")
+
+    media_type, _ = mimetypes.guess_type(str(artifact_path))
+    headers = {"Content-Disposition": f'attachment; filename="{artifact_path.name}"'}
+    return FileResponse(
+        path=str(artifact_path),
+        media_type=media_type or "application/octet-stream",
+        headers=headers,
+    )
+
+
+@app.post("/api/results/files/delete")
+def delete_results_files(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not RESET_LOGS_PASSWORD:
+        raise HTTPException(status_code=503, detail="Senha de reset nao configurada no ambiente")
+
+    password = str(payload.get("password") or "")
+    if not hmac.compare_digest(password, RESET_LOGS_PASSWORD):
+        raise HTTPException(status_code=401, detail="Senha de confirmacao invalida")
+
+    artifact_ids = payload.get("artifact_ids") or []
+    if not isinstance(artifact_ids, list) or not artifact_ids:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo selecionado")
+
+    if any(job.is_running for job in store.jobs.values()):
+        raise HTTPException(status_code=409, detail="Existe automacao em execucao. Pare antes de apagar planilhas.")
+
+    deleted_ids: List[str] = []
+    with SessionLocal() as db:
+        artifacts = (
+            db.query(JobArtifact)
+            .filter(JobArtifact.id.in_(artifact_ids), JobArtifact.type.in_(RESULT_SPREADSHEET_TYPES))
+            .all()
+        )
+        if not artifacts:
+            return {"status": "ok", "deleted": 0, "deleted_ids": []}
+
+        ids_to_delete = {a.id for a in artifacts}
+        paths_to_try: List[tuple[str, Optional[str]]] = []
+
+        for artifact in artifacts:
+            paths_to_try.append((artifact.file_path, artifact.job_id))
+            deleted_ids.append(artifact.id)
+            db.delete(artifact)
+
+        db.commit()
+
+        for file_path, job_id in paths_to_try:
+            refs = (
+                db.query(JobArtifact)
+                .filter(JobArtifact.file_path == file_path)
+                .count()
+            )
+            if refs > 0:
+                continue
+            resolved = _resolve_artifact_disk_path(file_path, job_id)
+            if resolved:
+                try:
+                    resolved.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+    return {"status": "ok", "deleted": len(deleted_ids), "deleted_ids": deleted_ids}
 
 
 @app.get("/api/admin/summary")

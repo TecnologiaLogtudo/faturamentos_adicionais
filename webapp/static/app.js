@@ -4,6 +4,8 @@ const state = {
   headers: [],
   logs: [],
   results: [],
+  resultFiles: [],
+  selectedResultFileIds: new Set(),
   autoScroll: true,
   logFilter: "ALL",
 };
@@ -43,8 +45,22 @@ navButtons.forEach((btn) => {
     btn.classList.add("active");
     Object.values(views).forEach((v) => v.classList.remove("active"));
     views[btn.dataset.view].classList.add("active");
+    if (btn.dataset.view === "resultados") {
+      if (state.jobId) {
+        loadResults();
+      }
+      loadResultFilesHistory();
+    }
   });
 });
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return String(value);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+}
 
 function loadSettings() {
   const raw = localStorage.getItem("logtudo_settings");
@@ -348,6 +364,71 @@ async function loadResults() {
   renderResults();
 }
 
+async function loadResultFilesHistory() {
+  const res = await fetch(withBasePath("/api/results/files"));
+  if (!res.ok) return;
+  const data = await res.json();
+  state.resultFiles = data.items || [];
+  state.selectedResultFileIds = new Set();
+  renderResultFilesHistory();
+}
+
+function renderResultFilesHistory() {
+  const tbody = el("resultFilesTable").querySelector("tbody");
+  const selectAll = el("selectAllResultFiles");
+  tbody.innerHTML = "";
+
+  if (!state.resultFiles.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="8">Nenhuma planilha registrada.</td>`;
+    tbody.appendChild(tr);
+    if (selectAll) selectAll.checked = false;
+    return;
+  }
+
+  state.resultFiles.forEach((item) => {
+    const tr = document.createElement("tr");
+    const checked = state.selectedResultFileIds.has(item.id) ? "checked" : "";
+    const disabled = item.available ? "" : "disabled";
+    const labelTipo = item.type === "planilha_tratada_ba" ? "Tratada BA" : "Preenchida";
+    tr.innerHTML = `
+      <td><input type="checkbox" class="result-file-check" data-id="${item.id}" ${checked} /></td>
+      <td>${labelTipo}</td>
+      <td>${item.file_name || "-"}</td>
+      <td>${item.uf || "-"}</td>
+      <td>${item.job_id || "-"}</td>
+      <td>${item.job_status || "-"}</td>
+      <td>${formatDateTime(item.created_at)}</td>
+      <td><button class="btn ghost result-file-download" data-id="${item.id}" ${disabled}>Download</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll(".result-file-check").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const id = event.target.dataset.id;
+      if (!id) return;
+      if (event.target.checked) state.selectedResultFileIds.add(id);
+      else state.selectedResultFileIds.delete(id);
+      if (selectAll) {
+        selectAll.checked = state.resultFiles.length > 0 && state.selectedResultFileIds.size === state.resultFiles.length;
+      }
+    });
+  });
+
+  tbody.querySelectorAll(".result-file-download").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      if (!id) return;
+      window.open(withBasePath(`/api/results/files/${id}/download`), "_blank");
+    });
+  });
+
+  if (selectAll) {
+    selectAll.checked = state.resultFiles.length > 0 && state.selectedResultFileIds.size === state.resultFiles.length;
+  }
+}
+
 function renderResults() {
   const tbody = el("resultsTable").querySelector("tbody");
   tbody.innerHTML = "";
@@ -400,11 +481,51 @@ async function exportResults(format) {
 el("btnExportCsv").addEventListener("click", () => exportResults("csv"));
 el("btnExportXlsx").addEventListener("click", () => exportResults("xlsx"));
 
+el("selectAllResultFiles")?.addEventListener("change", (event) => {
+  if (event.target.checked) {
+    state.selectedResultFileIds = new Set(state.resultFiles.map((item) => item.id));
+  } else {
+    state.selectedResultFileIds = new Set();
+  }
+  renderResultFilesHistory();
+});
+
+el("btnRefreshFiles")?.addEventListener("click", loadResultFilesHistory);
+
+el("btnDeleteFiles")?.addEventListener("click", async () => {
+  if (!state.selectedResultFileIds.size) {
+    window.alert("Selecione ao menos uma planilha.");
+    return;
+  }
+  const password = window.prompt("Confirme a senha para excluir as planilhas selecionadas:");
+  if (password === null) return;
+  if (!password.trim()) {
+    window.alert("Senha obrigatoria.");
+    return;
+  }
+
+  const res = await fetch(withBasePath("/api/results/files/delete"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      password,
+      artifact_ids: Array.from(state.selectedResultFileIds),
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    window.alert(err.detail || "Falha ao excluir planilhas.");
+    return;
+  }
+  await loadResultFilesHistory();
+});
+
 el("btnQuickLogs").addEventListener("click", () => {
   views.processamento.scrollIntoView({ behavior: "smooth" });
 });
 
 loadSettings();
+loadResultFilesHistory();
 
 
 el("btnClearFile").addEventListener("click", resetFile);
