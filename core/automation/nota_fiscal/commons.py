@@ -221,8 +221,13 @@ class NotaFiscalCommonsMixin:
         Determina o texto a ser preenchido na Identificação do Pedido.
         Centraliza a regra de negócio e separa a lógica da Bahia (BA) das demais UFs.
         """
-        # 1. Regra prioritária para a Bahia (BA)
-        if uf and str(uf).strip().upper() == 'BA':
+        uf_normalizada = str(uf).strip().upper() if uf else ""
+
+        # 1. Regra prioritária para a Bahia (BA): sempre força o mesmo texto.
+        if uf_normalizada == 'BA':
+            self.gui.log(
+                "UF BA detectada: usando Identificação do Pedido fixa 'DESPESAS ADICIONAIS'."
+            )
             return "DESPESAS ADICIONAIS"
 
         # 2. Regras gerais para as demais UFs
