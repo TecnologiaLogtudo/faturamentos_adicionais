@@ -161,6 +161,44 @@ const renderEmptyRow = (tbody, colSpan, message) => {
   tbody.innerHTML = `<tr><td colspan="${colSpan}" class="table-empty">${message}</td></tr>`;
 };
 
+const resetArtifactVideo = () => {
+  const section = qs("artifactVideoSection");
+  const player = qs("artifactVideoPlayer");
+  const openLink = qs("artifactVideoOpenLink");
+  if (!section || !player || !openLink) return;
+
+  player.pause();
+  player.removeAttribute("src");
+  player.load();
+  openLink.href = "#";
+  section.hidden = true;
+};
+
+const renderArtifactVideo = (items) => {
+  const section = qs("artifactVideoSection");
+  const player = qs("artifactVideoPlayer");
+  const openLink = qs("artifactVideoOpenLink");
+  if (!section || !player || !openLink) return;
+
+  const videoArtifact = (items || []).find((a) => {
+    if (!a || !a.available) return false;
+    const type = String(a.type || "").toLowerCase();
+    const filePath = String(a.file_path || "").toLowerCase();
+    return type === "video" || filePath.endsWith(".webm") || filePath.endsWith(".mp4");
+  });
+
+  if (!videoArtifact) {
+    resetArtifactVideo();
+    return;
+  }
+
+  const videoUrl = withBasePath(`/api/admin/artifacts/${videoArtifact.id}/file`);
+  player.src = videoUrl;
+  player.load();
+  openLink.href = videoUrl;
+  section.hidden = false;
+};
+
 tabs.forEach((tab) => {
   tab.addEventListener("click", async () => {
     tabs.forEach((t) => t.classList.remove("active"));
@@ -324,10 +362,14 @@ async function loadSteps(jobId) {
 }
 
 async function loadArtifacts(jobId) {
-  if (!jobId) return;
+  if (!jobId) {
+    resetArtifactVideo();
+    return;
+  }
   const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/artifacts`));
   const tbody = qs("artifactsTable").querySelector("tbody");
   if (!res.ok) {
+    resetArtifactVideo();
     showToast("Falha ao carregar artefatos", "error");
     renderEmptyRow(tbody, 3, "Nao foi possivel carregar os artefatos.");
     return;
@@ -335,9 +377,11 @@ async function loadArtifacts(jobId) {
   const data = await res.json();
   tbody.innerHTML = "";
   if (!(data.items || []).length) {
+    resetArtifactVideo();
     renderEmptyRow(tbody, 3, "Nenhum artefato encontrado para este job.");
     return;
   }
+  renderArtifactVideo(data.items || []);
   (data.items || []).forEach((a) => {
     const artifactUrl = withBasePath(`/api/admin/artifacts/${a.id}/file`);
     const fileName = (a.file_path || "").split(/[\\/]/).pop() || "arquivo";
@@ -469,6 +513,7 @@ async function resetLogsWithConfirmation() {
     document.querySelectorAll("table tbody").forEach((tbody) => {
       tbody.innerHTML = "";
     });
+    resetArtifactVideo();
 
     await loadSummary();
     await loadJobs();
