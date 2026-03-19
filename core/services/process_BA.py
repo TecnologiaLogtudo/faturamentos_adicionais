@@ -103,7 +103,8 @@ def process_accumulated(header_row, data_rows, sum_row, all_data, sheet_name="?"
         elif any(v == "NF" for v in doc_values):
             codigo_imposto = "IT"
             
-    valor_col = col_v_sem if has_isento else col_v_com
+    # Regra 1 e 2: Sempre prioriza a coluna "Valor sem imposto" (com fallback de segurança)
+    valor_col = col_v_sem if col_v_sem else col_v_com
 
     val_tt = 0.0
     if sum_row is not None:
@@ -113,19 +114,28 @@ def process_accumulated(header_row, data_rows, sum_row, all_data, sheet_name="?"
         except: val_tt = 0.0
     
     if val_tt == 0:
-        # Usa o último valor não vazio da coluna escolhida (caso não exista linha de soma)
         if valor_col:
             try:
                 series_vals = actual_data[valor_col]
-                for v in reversed(list(series_vals.values)):
+                valid_values = []
+                for v in list(series_vals.values):
                     if pd.isna(v):
                         continue
                     s = str(v).strip()
                     if not s or s.lower() in ["nan", "none"]:
                         continue
-                    val_tt = clean_numeric(v)
-                    if val_tt != 0:
-                        break
+                    num_val = clean_numeric(v)
+                    if num_val != 0:
+                        valid_values.append(num_val)
+                
+                if len(valid_values) > 1:
+                    # Regra de extração 2: Somatório se houver mais de um valor
+                    val_tt = sum(valid_values)
+                elif len(valid_values) == 1:
+                    # Regra de extração 3: Último valor válido
+                    val_tt = valid_values[-1]
+                else:
+                    val_tt = 0.0
             except Exception:
                 val_tt = 0.0
 
