@@ -16,13 +16,42 @@ if (backHomeLink) {
 
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
+const jobIdInputs = ["actionsJobId", "stepsJobId", "artifactsJobId", "browserJobId", "errorsJobId"];
+let selectedJobId = "";
+
+const syncJobIdInputs = (jobId) => {
+  jobIdInputs.forEach((id) => {
+    const input = qs(id);
+    if (input) {
+      input.value = jobId || "";
+    }
+  });
+};
+
+const highlightSelectedJobRow = () => {
+  document.querySelectorAll("#jobsTable tbody tr").forEach((row) => {
+    const isSelected = row.dataset.jobId === selectedJobId;
+    row.classList.toggle("active", isSelected);
+  });
+};
+
+const getActiveTab = () => {
+  const activeTab = document.querySelector(".tab.active");
+  return activeTab?.dataset?.tab || "overview";
+};
+
+const getJobIdFromInputOrSelected = (inputId) => {
+  const value = qs(inputId)?.value?.trim() || "";
+  return value || selectedJobId;
+};
 
 tabs.forEach((tab) => {
-  tab.addEventListener("click", () => {
+  tab.addEventListener("click", async () => {
     tabs.forEach((t) => t.classList.remove("active"));
     panels.forEach((p) => p.classList.remove("active"));
     tab.classList.add("active");
     qs(`panel-${tab.dataset.tab}`).classList.add("active");
+    await loadPanelData(tab.dataset.tab, selectedJobId);
   });
 });
 
@@ -45,8 +74,11 @@ async function loadJobs() {
   const data = await res.json();
   const tbody = qs("jobsTable").querySelector("tbody");
   tbody.innerHTML = "";
-  (data.items || []).forEach((j) => {
+  const items = data.items || [];
+  items.forEach((j) => {
     const tr = document.createElement("tr");
+    tr.dataset.jobId = j.id;
+    tr.classList.add("jobs-row");
     tr.innerHTML = `
       <td>${j.id}</td>
       <td>${j.status}</td>
@@ -55,8 +87,26 @@ async function loadJobs() {
       <td>${j.started_at || "-"}</td>
       <td>${j.duration_sec || "-"}</td>
     `;
+    tr.addEventListener("click", async () => {
+      await selectJob(j.id);
+    });
     tbody.appendChild(tr);
   });
+
+  if (!items.length) {
+    selectedJobId = "";
+    syncJobIdInputs("");
+    return;
+  }
+
+  const exists = items.some((item) => item.id === selectedJobId);
+  if (!exists) {
+    selectedJobId = items[0].id;
+    syncJobIdInputs(selectedJobId);
+  }
+
+  highlightSelectedJobRow();
+  await loadPanelData(getActiveTab(), selectedJobId);
 }
 
 async function loadActions(jobId) {
@@ -154,15 +204,62 @@ async function loadErrors(jobId) {
   });
 }
 
+async function loadPanelData(tabName, jobId) {
+  if (!jobId) return;
+  if (tabName === "actions") {
+    await loadActions(jobId);
+  }
+  if (tabName === "steps") {
+    await loadSteps(jobId);
+  }
+  if (tabName === "artifacts") {
+    await loadArtifacts(jobId);
+  }
+  if (tabName === "browser") {
+    await loadBrowserLogs(jobId);
+  }
+  if (tabName === "errors") {
+    await loadErrors(jobId);
+  }
+}
+
+async function selectJob(jobId) {
+  if (!jobId) return;
+  selectedJobId = jobId;
+  syncJobIdInputs(jobId);
+  highlightSelectedJobRow();
+  await loadPanelData(getActiveTab(), jobId);
+}
+
 qs("statusFilter").addEventListener("change", loadJobs);
-qs("btnLoadActions").addEventListener("click", () => loadActions(qs("actionsJobId").value.trim()));
-qs("btnLoadSteps").addEventListener("click", () => loadSteps(qs("stepsJobId").value.trim()));
-qs("btnLoadArtifacts").addEventListener("click", () => loadArtifacts(qs("artifactsJobId").value.trim()));
-qs("btnLoadBrowser").addEventListener("click", () => loadBrowserLogs(qs("browserJobId").value.trim()));
-qs("btnLoadErrors").addEventListener("click", () => loadErrors(qs("errorsJobId").value.trim()));
-qs("btnRefresh").addEventListener("click", () => {
-  loadSummary();
-  loadJobs();
+qs("btnLoadActions").addEventListener("click", async () => {
+  const jobId = getJobIdFromInputOrSelected("actionsJobId");
+  await selectJob(jobId);
+  await loadActions(jobId);
+});
+qs("btnLoadSteps").addEventListener("click", async () => {
+  const jobId = getJobIdFromInputOrSelected("stepsJobId");
+  await selectJob(jobId);
+  await loadSteps(jobId);
+});
+qs("btnLoadArtifacts").addEventListener("click", async () => {
+  const jobId = getJobIdFromInputOrSelected("artifactsJobId");
+  await selectJob(jobId);
+  await loadArtifacts(jobId);
+});
+qs("btnLoadBrowser").addEventListener("click", async () => {
+  const jobId = getJobIdFromInputOrSelected("browserJobId");
+  await selectJob(jobId);
+  await loadBrowserLogs(jobId);
+});
+qs("btnLoadErrors").addEventListener("click", async () => {
+  const jobId = getJobIdFromInputOrSelected("errorsJobId");
+  await selectJob(jobId);
+  await loadErrors(jobId);
+});
+qs("btnRefresh").addEventListener("click", async () => {
+  await loadSummary();
+  await loadJobs();
 });
 
 loadSummary();

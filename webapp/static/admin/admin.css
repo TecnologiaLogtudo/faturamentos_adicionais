@@ -202,6 +202,20 @@ th {
   font-weight: 500;
 }
 
+.jobs-row {
+  cursor: pointer;
+}
+
+.jobs-row:hover td {
+  background: rgba(43, 108, 176, 0.16);
+  color: var(--text);
+}
+
+.jobs-row.active td {
+  background: rgba(43, 108, 176, 0.28);
+  color: var(--text);
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
