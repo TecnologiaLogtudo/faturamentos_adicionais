@@ -70,6 +70,20 @@ if APP_BASE_PATH != "/" and APP_BASE_PATH.endswith("/"):
     APP_BASE_PATH = APP_BASE_PATH.rstrip("/")
 CLIENT_BASE_PATH = "" if APP_BASE_PATH == "/" else APP_BASE_PATH
 
+
+def _parse_env_bool(value: Optional[str], default: bool = True) -> bool:
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+PLAYWRIGHT_HEADLESS = _parse_env_bool(os.getenv("PLAYWRIGHT_HEADLESS"), default=True)
+
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
@@ -362,7 +376,7 @@ class JobRunner:
             self._record_action("start")
 
             self.controller = PlaywrightController()
-            self.controller.start(headless=False, record_video_dir=str(artifacts_dir))
+            self.controller.start(headless=PLAYWRIGHT_HEADLESS, record_video_dir=str(artifacts_dir))
             self.controller.start_tracing()
             self.log("Navegador iniciado com sucesso", level="success")
 
@@ -1120,7 +1134,15 @@ def job_logs_stream(job_id: str) -> StreamingResponse:
                 if job.status in ("completed", "stopped", "error") and job.log_queue.empty():
                     break
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/api/jobs/{job_id}/results")

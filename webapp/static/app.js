@@ -280,7 +280,7 @@ async function pollStatus() {
 
 function connectLogs() {
   if (!state.jobId) return;
-  const stream = new EventSource(`/api/jobs/${state.jobId}/logs/stream`);
+  const stream = new EventSource(withBasePath(`/api/jobs/${state.jobId}/logs/stream`));
   stream.onmessage = (event) => {
     if (!event.data) return;
     const entry = JSON.parse(event.data);

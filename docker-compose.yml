@@ -17,6 +17,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=America/Sao_Paulo
+      - PLAYWRIGHT_HEADLESS=true
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_PASS=${ADMIN_PASS}
