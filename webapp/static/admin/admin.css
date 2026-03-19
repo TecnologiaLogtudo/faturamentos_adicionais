@@ -231,6 +231,12 @@ th {
   background: rgba(43, 108, 176, 0.32);
 }
 
+.job-id-copy.copied {
+  background: rgba(71, 201, 150, 0.26);
+  border-color: rgba(71, 201, 150, 0.6);
+  color: #d9ffef;
+}
+
 .artifact-link {
   color: #8fc1ff;
   text-decoration: none;
@@ -240,6 +246,62 @@ th {
 .artifact-link:hover {
   color: #cfe5ff;
   border-bottom-color: rgba(207, 229, 255, 0.7);
+}
+
+.artifact-missing {
+  color: #f7b733;
+  border-bottom: 1px dashed rgba(247, 183, 51, 0.45);
+}
+
+.table-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 16px 10px;
+}
+
+.toast-root {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  min-width: 220px;
+  max-width: 360px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #f3f6fb;
+  border: 1px solid var(--border);
+  background: #1a2435;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  font-size: 13px;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.success {
+  border-color: rgba(71, 201, 150, 0.35);
+  background: rgba(24, 72, 56, 0.95);
+}
+
+.toast.error {
+  border-color: rgba(217, 83, 79, 0.42);
+  background: rgba(86, 28, 28, 0.95);
+}
+
+.toast.info {
+  border-color: rgba(143, 193, 255, 0.35);
+  background: rgba(24, 40, 72, 0.95);
 }
 
 .kpi-grid {

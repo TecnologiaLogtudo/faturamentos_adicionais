@@ -896,6 +896,38 @@ def _user_agent(request: Request) -> str:
     return request.headers.get("user-agent", "")
 
 
+def _resolve_artifact_disk_path(file_path: str, job_id: Optional[str] = None) -> Optional[Path]:
+    raw_path = Path(file_path)
+    candidates: List[Path] = []
+
+    # 1) Caminho gravado no banco.
+    candidates.append(raw_path)
+
+    # 2) Quando o caminho salvo era relativo.
+    if not raw_path.is_absolute():
+        candidates.append((ROOT / raw_path).resolve())
+
+    # 3) Caminhos alternativos por nome de arquivo dentro da pasta de artefatos do job.
+    if job_id and raw_path.name:
+        candidates.append((ARTIFACTS_DIR / job_id / raw_path.name).resolve())
+
+    # 4) Compatibilidade com caminhos antigos de container.
+    raw_str = str(raw_path).replace("\\", "/")
+    legacy_prefixes = ["/app/exports/jobs/", "/app/webapp/exports/jobs/"]
+    for prefix in legacy_prefixes:
+        if raw_str.startswith(prefix):
+            tail = raw_str[len(prefix):].lstrip("/")
+            candidates.append((ARTIFACTS_DIR / tail).resolve())
+
+    for candidate in candidates:
+        try:
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
 @app.on_event("startup")
 def _startup() -> None:
     if not DATABASE_URL:
@@ -1284,6 +1316,7 @@ def admin_job_artifacts(request: Request, job_id: str):
                     "type": a.type,
                     "file_path": a.file_path,
                     "created_at": a.created_at,
+                    "available": bool(_resolve_artifact_disk_path(a.file_path, a.job_id)),
                 }
                 for a in items
             ]
@@ -1298,8 +1331,8 @@ def admin_artifact_file(request: Request, artifact_id: str):
         if not artifact:
             raise HTTPException(status_code=404, detail="Artefato nao encontrado")
 
-    artifact_path = Path(artifact.file_path)
-    if not artifact_path.exists() or not artifact_path.is_file():
+    artifact_path = _resolve_artifact_disk_path(artifact.file_path, artifact.job_id)
+    if not artifact_path:
         raise HTTPException(status_code=404, detail="Arquivo do artefato nao encontrado")
 
     media_type, _ = mimetypes.guess_type(str(artifact_path))

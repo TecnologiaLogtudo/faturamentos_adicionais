@@ -116,6 +116,51 @@ const getJobIdFromInputOrSelected = (inputId) => {
   return resolveJobId(value) || selectedJobId;
 };
 
+const ensureToastRoot = () => {
+  let root = document.getElementById("toastRoot");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "toastRoot";
+    root.className = "toast-root";
+    document.body.appendChild(root);
+  }
+  return root;
+};
+
+const showToast = (message, type = "info") => {
+  const root = ensureToastRoot();
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  root.appendChild(toast);
+  setTimeout(() => toast.classList.add("show"), 10);
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 180);
+  }, 2300);
+};
+
+const withLoading = async (buttonId, fn) => {
+  const btn = qs(buttonId);
+  if (!btn) {
+    await fn();
+    return;
+  }
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Carregando...";
+  try {
+    await fn();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+};
+
+const renderEmptyRow = (tbody, colSpan, message) => {
+  tbody.innerHTML = `<tr><td colspan="${colSpan}" class="table-empty">${message}</td></tr>`;
+};
+
 tabs.forEach((tab) => {
   tab.addEventListener("click", async () => {
     tabs.forEach((t) => t.classList.remove("active"));
@@ -128,7 +173,10 @@ tabs.forEach((tab) => {
 
 async function loadSummary() {
   const res = await fetch(withBasePath("/api/admin/summary"));
-  if (!res.ok) return;
+  if (!res.ok) {
+    showToast("Falha ao carregar resumo", "error");
+    return;
+  }
   const data = await res.json();
   qs("kpiTotal").textContent = data.total_jobs ?? 0;
   qs("kpiSuccess").textContent = data.success_jobs ?? 0;
@@ -141,7 +189,10 @@ async function loadJobs() {
   const url = new URL(withBasePath("/api/admin/jobs"), window.location.origin);
   if (status) url.searchParams.set("status", status);
   const res = await fetch(url.toString());
-  if (!res.ok) return;
+  if (!res.ok) {
+    showToast("Falha ao carregar jobs", "error");
+    return;
+  }
   const data = await res.json();
   const tbody = qs("jobsTable").querySelector("tbody");
   tbody.innerHTML = "";
@@ -175,6 +226,18 @@ async function loadJobs() {
         event.stopPropagation();
         const shortToCopy = copyBtn.dataset.shortId || "";
         const copied = await copyToClipboard(shortToCopy);
+        if (copied) {
+          copyBtn.classList.add("copied");
+          copyBtn.textContent = "Copiado";
+          showToast(`ID ${shortToCopy} copiado`, "success");
+          setTimeout(() => {
+            copyBtn.classList.remove("copied");
+            copyBtn.textContent = shortToCopy;
+          }, 1100);
+        } else {
+          showToast("Nao foi possivel copiar o ID", "error");
+        }
+
         const oldTitle = copyBtn.title;
         copyBtn.title = copied ? "ID copiado" : "Falha ao copiar";
         setTimeout(() => {
@@ -191,6 +254,7 @@ async function loadJobs() {
   if (!items.length) {
     selectedJobId = "";
     syncJobIdInputs("");
+    renderEmptyRow(tbody, 6, "Nenhum job encontrado para o filtro atual.");
     return;
   }
 
@@ -207,10 +271,18 @@ async function loadJobs() {
 async function loadActions(jobId) {
   if (!jobId) return;
   const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/actions`));
-  if (!res.ok) return;
-  const data = await res.json();
   const tbody = qs("actionsTable").querySelector("tbody");
+  if (!res.ok) {
+    showToast("Falha ao carregar acoes", "error");
+    renderEmptyRow(tbody, 4, "Nao foi possivel carregar as acoes.");
+    return;
+  }
+  const data = await res.json();
   tbody.innerHTML = "";
+  if (!(data.items || []).length) {
+    renderEmptyRow(tbody, 4, "Nenhuma acao encontrada para este job.");
+    return;
+  }
   (data.items || []).forEach((a) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -226,10 +298,18 @@ async function loadActions(jobId) {
 async function loadSteps(jobId) {
   if (!jobId) return;
   const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/steps`));
-  if (!res.ok) return;
-  const data = await res.json();
   const tbody = qs("stepsTable").querySelector("tbody");
+  if (!res.ok) {
+    showToast("Falha ao carregar passos", "error");
+    renderEmptyRow(tbody, 5, "Nao foi possivel carregar os passos.");
+    return;
+  }
+  const data = await res.json();
   tbody.innerHTML = "";
+  if (!(data.items || []).length) {
+    renderEmptyRow(tbody, 5, "Nenhum passo encontrado para este job.");
+    return;
+  }
   (data.items || []).forEach((s) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -246,18 +326,30 @@ async function loadSteps(jobId) {
 async function loadArtifacts(jobId) {
   if (!jobId) return;
   const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/artifacts`));
-  if (!res.ok) return;
-  const data = await res.json();
   const tbody = qs("artifactsTable").querySelector("tbody");
+  if (!res.ok) {
+    showToast("Falha ao carregar artefatos", "error");
+    renderEmptyRow(tbody, 3, "Nao foi possivel carregar os artefatos.");
+    return;
+  }
+  const data = await res.json();
   tbody.innerHTML = "";
+  if (!(data.items || []).length) {
+    renderEmptyRow(tbody, 3, "Nenhum artefato encontrado para este job.");
+    return;
+  }
   (data.items || []).forEach((a) => {
     const artifactUrl = withBasePath(`/api/admin/artifacts/${a.id}/file`);
     const fileName = (a.file_path || "").split(/[\\/]/).pop() || "arquivo";
+    const isAvailable = !!a.available;
+    const linkHtml = isAvailable
+      ? `<a class="artifact-link" href="${artifactUrl}" target="_blank" rel="noopener noreferrer">${fileName}</a>`
+      : `<span class="artifact-missing" title="Arquivo nao encontrado no disco">${fileName}</span>`;
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${a.type}</td>
       <td>
-        <a class="artifact-link" href="${artifactUrl}" target="_blank" rel="noopener noreferrer">${fileName}</a>
+        ${linkHtml}
       </td>
       <td>${formatDateTime(a.created_at)}</td>
     `;
@@ -268,10 +360,18 @@ async function loadArtifacts(jobId) {
 async function loadBrowserLogs(jobId) {
   if (!jobId) return;
   const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/browser-logs`));
-  if (!res.ok) return;
-  const data = await res.json();
   const tbody = qs("browserTable").querySelector("tbody");
+  if (!res.ok) {
+    showToast("Falha ao carregar logs do browser", "error");
+    renderEmptyRow(tbody, 5, "Nao foi possivel carregar os logs do browser.");
+    return;
+  }
+  const data = await res.json();
   tbody.innerHTML = "";
+  if (!(data.items || []).length) {
+    renderEmptyRow(tbody, 5, "Nenhum log de browser encontrado para este job.");
+    return;
+  }
   (data.items || []).forEach((l) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -288,10 +388,18 @@ async function loadBrowserLogs(jobId) {
 async function loadErrors(jobId) {
   if (!jobId) return;
   const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/errors`));
-  if (!res.ok) return;
-  const data = await res.json();
   const tbody = qs("errorsTable").querySelector("tbody");
+  if (!res.ok) {
+    showToast("Falha ao carregar erros", "error");
+    renderEmptyRow(tbody, 3, "Nao foi possivel carregar os erros.");
+    return;
+  }
+  const data = await res.json();
   tbody.innerHTML = "";
+  if (!(data.items || []).length) {
+    renderEmptyRow(tbody, 3, "Nenhum erro encontrado para este job.");
+    return;
+  }
   (data.items || []).forEach((e) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -332,33 +440,59 @@ async function selectJob(jobId) {
 
 qs("statusFilter").addEventListener("change", loadJobs);
 qs("btnLoadActions").addEventListener("click", async () => {
-  const jobId = getJobIdFromInputOrSelected("actionsJobId");
-  await selectJob(jobId);
-  await loadActions(jobId);
+  await withLoading("btnLoadActions", async () => {
+    const jobId = getJobIdFromInputOrSelected("actionsJobId");
+    await selectJob(jobId);
+    await loadActions(jobId);
+  });
 });
 qs("btnLoadSteps").addEventListener("click", async () => {
-  const jobId = getJobIdFromInputOrSelected("stepsJobId");
-  await selectJob(jobId);
-  await loadSteps(jobId);
+  await withLoading("btnLoadSteps", async () => {
+    const jobId = getJobIdFromInputOrSelected("stepsJobId");
+    await selectJob(jobId);
+    await loadSteps(jobId);
+  });
 });
 qs("btnLoadArtifacts").addEventListener("click", async () => {
-  const jobId = getJobIdFromInputOrSelected("artifactsJobId");
-  await selectJob(jobId);
-  await loadArtifacts(jobId);
+  await withLoading("btnLoadArtifacts", async () => {
+    const jobId = getJobIdFromInputOrSelected("artifactsJobId");
+    await selectJob(jobId);
+    await loadArtifacts(jobId);
+  });
 });
 qs("btnLoadBrowser").addEventListener("click", async () => {
-  const jobId = getJobIdFromInputOrSelected("browserJobId");
-  await selectJob(jobId);
-  await loadBrowserLogs(jobId);
+  await withLoading("btnLoadBrowser", async () => {
+    const jobId = getJobIdFromInputOrSelected("browserJobId");
+    await selectJob(jobId);
+    await loadBrowserLogs(jobId);
+  });
 });
 qs("btnLoadErrors").addEventListener("click", async () => {
-  const jobId = getJobIdFromInputOrSelected("errorsJobId");
-  await selectJob(jobId);
-  await loadErrors(jobId);
+  await withLoading("btnLoadErrors", async () => {
+    const jobId = getJobIdFromInputOrSelected("errorsJobId");
+    await selectJob(jobId);
+    await loadErrors(jobId);
+  });
 });
 qs("btnRefresh").addEventListener("click", async () => {
-  await loadSummary();
-  await loadJobs();
+  await withLoading("btnRefresh", async () => {
+    await loadSummary();
+    await loadJobs();
+    showToast("Painel atualizado", "success");
+  });
+});
+
+jobIdInputs.forEach((inputId, idx) => {
+  const input = qs(inputId);
+  if (!input) return;
+  const actionButtonIds = ["btnLoadActions", "btnLoadSteps", "btnLoadArtifacts", "btnLoadBrowser", "btnLoadErrors"];
+  const targetButton = qs(actionButtonIds[idx]);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      targetButton?.click();
+    }
+  });
 });
 
 loadSummary();
