@@ -1,4 +1,13 @@
 const qs = (id) => document.getElementById(id);
+const RAW_BASE_PATH = window.LOGTUDO_BASE_PATH || "";
+const BASE_PATH = RAW_BASE_PATH.replace(/\/+$/, "");
+const withBasePath = (path) => {
+  if (!BASE_PATH) {
+    return path;
+  }
+  const trimmed = path.replace(/^\/+/, "");
+  return `${BASE_PATH}/${trimmed}`;
+};
 
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
@@ -13,7 +22,7 @@ tabs.forEach((tab) => {
 });
 
 async function loadSummary() {
-  const res = await fetch("/api/admin/summary");
+  const res = await fetch(withBasePath("/api/admin/summary"));
   if (!res.ok) return;
   const data = await res.json();
   qs("kpiTotal").textContent = data.total_jobs ?? 0;
@@ -24,7 +33,7 @@ async function loadSummary() {
 
 async function loadJobs() {
   const status = qs("statusFilter").value;
-  const url = new URL("/api/admin/jobs", window.location.origin);
+  const url = new URL(withBasePath("/api/admin/jobs"), window.location.origin);
   if (status) url.searchParams.set("status", status);
   const res = await fetch(url.toString());
   if (!res.ok) return;
@@ -47,7 +56,7 @@ async function loadJobs() {
 
 async function loadActions(jobId) {
   if (!jobId) return;
-  const res = await fetch(`/api/admin/jobs/${jobId}/actions`);
+  const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/actions`));
   if (!res.ok) return;
   const data = await res.json();
   const tbody = qs("actionsTable").querySelector("tbody");
@@ -66,7 +75,7 @@ async function loadActions(jobId) {
 
 async function loadSteps(jobId) {
   if (!jobId) return;
-  const res = await fetch(`/api/admin/jobs/${jobId}/steps`);
+  const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/steps`));
   if (!res.ok) return;
   const data = await res.json();
   const tbody = qs("stepsTable").querySelector("tbody");
@@ -86,7 +95,7 @@ async function loadSteps(jobId) {
 
 async function loadArtifacts(jobId) {
   if (!jobId) return;
-  const res = await fetch(`/api/admin/jobs/${jobId}/artifacts`);
+  const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/artifacts`));
   if (!res.ok) return;
   const data = await res.json();
   const tbody = qs("artifactsTable").querySelector("tbody");
@@ -104,7 +113,7 @@ async function loadArtifacts(jobId) {
 
 async function loadBrowserLogs(jobId) {
   if (!jobId) return;
-  const res = await fetch(`/api/admin/jobs/${jobId}/browser-logs`);
+  const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/browser-logs`));
   if (!res.ok) return;
   const data = await res.json();
   const tbody = qs("browserTable").querySelector("tbody");
@@ -124,7 +133,7 @@ async function loadBrowserLogs(jobId) {
 
 async function loadErrors(jobId) {
   if (!jobId) return;
-  const res = await fetch(`/api/admin/jobs/${jobId}/errors`);
+  const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/errors`));
   if (!res.ok) return;
   const data = await res.json();
   const tbody = qs("errorsTable").querySelector("tbody");
@@ -149,11 +158,6 @@ qs("btnLoadErrors").addEventListener("click", () => loadErrors(qs("errorsJobId")
 qs("btnRefresh").addEventListener("click", () => {
   loadSummary();
   loadJobs();
-});
-
-qs("btnLogout").addEventListener("click", async () => {
-  await fetch("/admin/logout", { method: "POST" });
-  window.location.href = "/admin/login";
 });
 
 loadSummary();

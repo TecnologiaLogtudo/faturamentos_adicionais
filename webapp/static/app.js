@@ -20,12 +20,22 @@ const withBasePath = (path) => {
 
 const el = (id) => document.getElementById(id);
 
-const navButtons = document.querySelectorAll(".nav-btn");
+const navButtons = document.querySelectorAll(".nav-btn[data-view]");
 const views = {
   processamento: el("view-processamento"),
   configuracoes: el("view-configuracoes"),
   resultados: el("view-resultados"),
 };
+
+const manualLink = el("manualLink");
+if (manualLink) {
+  manualLink.href = withBasePath("/manual-usuario");
+}
+
+const logsLink = el("logsLink");
+if (logsLink) {
+  logsLink.href = withBasePath("/logs-FaturamentosAdicionais");
+}
 
 navButtons.forEach((btn) => {
   btn.addEventListener("click", () => {

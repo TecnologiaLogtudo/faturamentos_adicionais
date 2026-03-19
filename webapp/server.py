@@ -69,6 +69,7 @@ if not APP_BASE_PATH.startswith("/"):
 if APP_BASE_PATH != "/" and APP_BASE_PATH.endswith("/"):
     APP_BASE_PATH = APP_BASE_PATH.rstrip("/")
 CLIENT_BASE_PATH = "" if APP_BASE_PATH == "/" else APP_BASE_PATH
+ADMIN_ROUTE = "/logs-FaturamentosAdicionais"
 
 
 def _parse_env_bool(value: Optional[str], default: bool = True) -> bool:
@@ -816,6 +817,12 @@ def _render_index_html() -> str:
     return html
 
 
+def _render_admin_html() -> str:
+    html = (ADMIN_DIR / "index.html").read_text(encoding="utf-8")
+    html = html.replace(BASE_PATH_PLACEHOLDER, json.dumps(CLIENT_BASE_PATH))
+    return html
+
+
 @app.get("/")
 def index() -> HTMLResponse:
     return HTMLResponse(content=_render_index_html())
@@ -847,46 +854,20 @@ def manual_file(file_path: str) -> Response:
     return Response(content=data, media_type=media_type or "application/octet-stream")
 
 
+@app.get(ADMIN_ROUTE)
+def admin_index() -> HTMLResponse:
+    return HTMLResponse(content=_render_admin_html())
+
+
 @app.get("/admin")
-def admin_index(request: Request) -> HTMLResponse:
-    if not request.session.get("admin"):
-        return RedirectResponse(url="/admin/login")
-    html = (ADMIN_DIR / "index.html").read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+def admin_legacy_redirect() -> Response:
+    return RedirectResponse(url=ADMIN_ROUTE, status_code=307)
 
 
-@app.get("/admin/login")
-def admin_login_page() -> HTMLResponse:
-    html = (ADMIN_DIR / "login.html").read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
-
-
-@app.post("/admin/login")
-def admin_login(request: Request, username: str = Form(...), password: str = Form(...)) -> Response:
-    admin_user = os.getenv("ADMIN_USER", "")
-    admin_pass = os.getenv("ADMIN_PASS", "")
-    if username != admin_user or password != admin_pass:
-        raise HTTPException(status_code=401, detail="Credenciais invalidas")
-    request.session["admin"] = True
-    request.session["admin_user"] = username
-    with SessionLocal() as db:
-        db.add(
-            JobAction(
-                job_id=None,
-                action_type="admin_login",
-                actor=username,
-                ip=_client_ip(request),
-                metadata_json={"user_agent": _user_agent(request)},
-            )
-        )
-        db.commit()
-    return JSONResponse({"status": "ok"})
-
-
-@app.get("/admin/{file_path:path}")
-def admin_file(request: Request, file_path: str) -> Response:
-    if not request.session.get("admin") and file_path != "admin.css":
-        return RedirectResponse(url="/admin/login")
+@app.get(f"{ADMIN_ROUTE}/{{file_path:path}}")
+def admin_file(file_path: str) -> Response:
+    if file_path == "index.html":
+        return HTMLResponse(content=_render_admin_html())
     full_path = ADMIN_DIR / file_path
     if not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail="Arquivo nao encontrado")
@@ -895,31 +876,12 @@ def admin_file(request: Request, file_path: str) -> Response:
     return Response(content=data, media_type=media_type or "application/octet-stream")
 
 
-@app.post("/admin/logout")
-def admin_logout(request: Request) -> Response:
-    actor = _admin_actor(request)
-    request.session.clear()
-    with SessionLocal() as db:
-        db.add(
-            JobAction(
-                job_id=None,
-                action_type="admin_logout",
-                actor=actor,
-                ip=_client_ip(request),
-                metadata_json={"user_agent": _user_agent(request)},
-            )
-        )
-        db.commit()
-    return JSONResponse({"status": "ok"})
+def _require_admin(_request: Request):
+    return None
 
 
-def _require_admin(request: Request):
-    if not request.session.get("admin"):
-        raise HTTPException(status_code=401, detail="Nao autorizado")
-
-
-def _admin_actor(request: Request) -> str:
-    return request.session.get("admin_user", "admin")
+def _admin_actor(_request: Request) -> str:
+    return "admin"
 
 
 def _client_ip(request: Request) -> str:
