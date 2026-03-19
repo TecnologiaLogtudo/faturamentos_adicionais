@@ -18,12 +18,83 @@ const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
 const jobIdInputs = ["actionsJobId", "stepsJobId", "artifactsJobId", "browserJobId", "errorsJobId"];
 let selectedJobId = "";
+const jobMetaByFullId = new Map();
+const fullIdByShortId = new Map();
+
+const toDate = (value) => {
+  if (!value) return null;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+};
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+const formatDateTime = (value) => {
+  const dt = toDate(value);
+  if (!dt) return "-";
+  return `${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)}/${dt.getFullYear()} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`;
+};
+
+const buildBaseShortId = (value) => {
+  const dt = toDate(value);
+  if (!dt) return "";
+  return `${pad2(dt.getDate())}${pad2(dt.getMonth() + 1)}${dt.getFullYear()}-${pad2(dt.getHours())}${pad2(dt.getMinutes())}`;
+};
+
+const uniqueShortId = (baseId, usageMap) => {
+  if (!baseId) return "";
+  const count = (usageMap.get(baseId) || 0) + 1;
+  usageMap.set(baseId, count);
+  if (count === 1) return baseId;
+  return `${baseId}-${count}`;
+};
+
+const buildFallbackShortId = (fullId) => {
+  if (!fullId) return "";
+  return fullId.slice(0, 8);
+};
+
+const shortIdFromFullId = (fullId) => {
+  return jobMetaByFullId.get(fullId)?.shortId || fullId || "";
+};
+
+const resolveJobId = (value) => {
+  if (!value) return "";
+  if (jobMetaByFullId.has(value)) return value;
+  if (fullIdByShortId.has(value)) return fullIdByShortId.get(value);
+  return value;
+};
+
+const copyToClipboard = async (text) => {
+  if (!text) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_error) {
+    try {
+      const tmp = document.createElement("textarea");
+      tmp.value = text;
+      tmp.style.position = "fixed";
+      tmp.style.left = "-9999px";
+      document.body.appendChild(tmp);
+      tmp.focus();
+      tmp.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(tmp);
+      return !!ok;
+    } catch (_fallbackError) {
+      return false;
+    }
+  }
+};
 
 const syncJobIdInputs = (jobId) => {
+  const displayId = shortIdFromFullId(jobId);
   jobIdInputs.forEach((id) => {
     const input = qs(id);
     if (input) {
-      input.value = jobId || "";
+      input.value = displayId || "";
     }
   });
 };
@@ -42,7 +113,7 @@ const getActiveTab = () => {
 
 const getJobIdFromInputOrSelected = (inputId) => {
   const value = qs(inputId)?.value?.trim() || "";
-  return value || selectedJobId;
+  return resolveJobId(value) || selectedJobId;
 };
 
 tabs.forEach((tab) => {
@@ -74,19 +145,43 @@ async function loadJobs() {
   const data = await res.json();
   const tbody = qs("jobsTable").querySelector("tbody");
   tbody.innerHTML = "";
+  jobMetaByFullId.clear();
+  fullIdByShortId.clear();
+  const shortIdUsage = new Map();
   const items = data.items || [];
   items.forEach((j) => {
+    const shortBase = buildBaseShortId(j.started_at);
+    const shortId = uniqueShortId(shortBase, shortIdUsage) || buildFallbackShortId(j.id);
+    jobMetaByFullId.set(j.id, {
+      shortId,
+      startedAtFormatted: formatDateTime(j.started_at),
+    });
+    fullIdByShortId.set(shortId, j.id);
+
     const tr = document.createElement("tr");
     tr.dataset.jobId = j.id;
     tr.classList.add("jobs-row");
     tr.innerHTML = `
-      <td>${j.id}</td>
+      <td><button class="job-id-copy" type="button" data-short-id="${shortId}" data-full-id="${j.id}" title="Clique para copiar">${shortId}</button></td>
       <td>${j.status}</td>
       <td>${j.username || "-"}</td>
       <td>${j.ip || "-"}</td>
-      <td>${j.started_at || "-"}</td>
+      <td>${formatDateTime(j.started_at)}</td>
       <td>${j.duration_sec || "-"}</td>
     `;
+    const copyBtn = tr.querySelector(".job-id-copy");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const shortToCopy = copyBtn.dataset.shortId || "";
+        const copied = await copyToClipboard(shortToCopy);
+        const oldTitle = copyBtn.title;
+        copyBtn.title = copied ? "ID copiado" : "Falha ao copiar";
+        setTimeout(() => {
+          copyBtn.title = oldTitle;
+        }, 1000);
+      });
+    }
     tr.addEventListener("click", async () => {
       await selectJob(j.id);
     });
@@ -122,7 +217,7 @@ async function loadActions(jobId) {
       <td>${a.action_type}</td>
       <td>${a.actor || "-"}</td>
       <td>${a.ip || "-"}</td>
-      <td>${a.timestamp || "-"}</td>
+      <td>${formatDateTime(a.timestamp)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -140,8 +235,8 @@ async function loadSteps(jobId) {
     tr.innerHTML = `
       <td>${s.name}</td>
       <td>${s.status}</td>
-      <td>${s.started_at || "-"}</td>
-      <td>${s.ended_at || "-"}</td>
+      <td>${formatDateTime(s.started_at)}</td>
+      <td>${formatDateTime(s.ended_at)}</td>
       <td>${s.metadata ? JSON.stringify(s.metadata) : "-"}</td>
     `;
     tbody.appendChild(tr);
@@ -156,11 +251,15 @@ async function loadArtifacts(jobId) {
   const tbody = qs("artifactsTable").querySelector("tbody");
   tbody.innerHTML = "";
   (data.items || []).forEach((a) => {
+    const artifactUrl = withBasePath(`/api/admin/artifacts/${a.id}/file`);
+    const fileName = (a.file_path || "").split(/[\\/]/).pop() || "arquivo";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${a.type}</td>
-      <td>${a.file_path}</td>
-      <td>${a.created_at || "-"}</td>
+      <td>
+        <a class="artifact-link" href="${artifactUrl}" target="_blank" rel="noopener noreferrer">${fileName}</a>
+      </td>
+      <td>${formatDateTime(a.created_at)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -180,7 +279,7 @@ async function loadBrowserLogs(jobId) {
       <td>${l.type}</td>
       <td>${l.message}</td>
       <td>${l.url || "-"}</td>
-      <td>${l.timestamp || "-"}</td>
+      <td>${formatDateTime(l.timestamp)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -197,7 +296,7 @@ async function loadErrors(jobId) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${e.message}</td>
-      <td>${e.timestamp || "-"}</td>
+      <td>${formatDateTime(e.timestamp)}</td>
       <td>${e.context ? JSON.stringify(e.context) : "-"}</td>
     `;
     tbody.appendChild(tr);

@@ -216,6 +216,32 @@ th {
   color: var(--text);
 }
 
+.job-id-copy {
+  background: rgba(43, 108, 176, 0.16);
+  color: #b8d7ff;
+  border: 1px solid rgba(143, 193, 255, 0.35);
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: "Space Grotesk", sans-serif;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.job-id-copy:hover {
+  background: rgba(43, 108, 176, 0.32);
+}
+
+.artifact-link {
+  color: #8fc1ff;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(143, 193, 255, 0.45);
+}
+
+.artifact-link:hover {
+  color: #cfe5ff;
+  border-bottom-color: rgba(207, 229, 255, 0.7);
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

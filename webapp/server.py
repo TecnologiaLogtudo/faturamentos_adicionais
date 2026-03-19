@@ -1290,6 +1290,27 @@ def admin_job_artifacts(request: Request, job_id: str):
         }
 
 
+@app.get("/api/admin/artifacts/{artifact_id}/file")
+def admin_artifact_file(request: Request, artifact_id: str):
+    _require_admin(request)
+    with SessionLocal() as db:
+        artifact = db.get(JobArtifact, artifact_id)
+        if not artifact:
+            raise HTTPException(status_code=404, detail="Artefato nao encontrado")
+
+    artifact_path = Path(artifact.file_path)
+    if not artifact_path.exists() or not artifact_path.is_file():
+        raise HTTPException(status_code=404, detail="Arquivo do artefato nao encontrado")
+
+    media_type, _ = mimetypes.guess_type(str(artifact_path))
+    headers = {"Content-Disposition": f'inline; filename="{artifact_path.name}"'}
+    return FileResponse(
+        path=str(artifact_path),
+        media_type=media_type or "application/octet-stream",
+        headers=headers,
+    )
+
+
 @app.get("/api/admin/jobs/{job_id}/browser-logs")
 def admin_job_browser_logs(request: Request, job_id: str):
     _require_admin(request)
