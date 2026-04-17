@@ -220,10 +220,32 @@ function validateMapping(mapping) {
   return Object.values(mapping).every((v) => Number.isInteger(v));
 }
 
+function showStartError(message) {
+  const text = message || "Falha ao iniciar o job.";
+  el("runStatus").textContent = text;
+  el("btnStart").disabled = false;
+  el("btnStartTop").disabled = false;
+}
+
+async function parseErrorDetail(res) {
+  try {
+    const payload = await res.json();
+    if (payload && typeof payload.detail === "string" && payload.detail.trim()) {
+      return payload.detail.trim();
+    }
+  } catch (_) {
+    // Ignora erro de parse e cai no fallback.
+  }
+  return `Falha ao iniciar job (${res.status}).`;
+}
+
 async function startJob() {
   if (!state.fileId) return;
   const mapping = getMapping();
-  if (!validateMapping(mapping)) return;
+  if (!validateMapping(mapping)) {
+    showStartError("Preencha todos os campos obrigatorios do mapeamento antes de iniciar.");
+    return;
+  }
   const settings = getSettingsPayload();
   const payload = {
     fileId: state.fileId,
@@ -231,20 +253,29 @@ async function startJob() {
     executeEnvios: el("toggleEnvios").checked,
     settings,
   };
-  const res = await fetch(withBasePath("/api/jobs"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) return;
-  const data = await res.json();
-  state.jobId = data.jobId;
-  el("btnStart").disabled = true;
-  el("btnStartTop").disabled = true;
-  el("btnPause").disabled = false;
-  el("btnStop").disabled = false;
-  connectLogs();
-  pollStatus();
+  try {
+    const res = await fetch(withBasePath("/api/jobs"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const detail = await parseErrorDetail(res);
+      showStartError(detail);
+      return;
+    }
+    const data = await res.json();
+    state.jobId = data.jobId;
+    el("runStatus").textContent = "Iniciando";
+    el("btnStart").disabled = true;
+    el("btnStartTop").disabled = true;
+    el("btnPause").disabled = false;
+    el("btnStop").disabled = false;
+    connectLogs();
+    pollStatus();
+  } catch (_) {
+    showStartError("Erro de conexao ao iniciar o job.");
+  }
 }
 
 async function pauseJob() {

@@ -762,30 +762,6 @@ class JobStore:
         self.jobs: Dict[str, Job] = {}
         self.files: Dict[str, Dict[str, Any]] = {}
 
-    def _normalize_header(self, value: Any) -> str:
-        text = str(value or "").strip().lower()
-        text = text.replace("º", "o").replace("°", "o")
-        text = text.replace("_", " ")
-        text = " ".join(text.split())
-        return text
-
-    def _find_cte_output_index(self, headers: List[Any]) -> int:
-        # Prioriza o nome oficial da coluna.
-        preferred = "no cte"
-        aliases = {"numero cte", "cte", "nocte"}
-
-        normalized_headers = [self._normalize_header(h) for h in headers]
-
-        for idx, header in enumerate(normalized_headers):
-            if header == preferred:
-                return idx
-
-        for idx, header in enumerate(normalized_headers):
-            if header in aliases:
-                return idx
-
-        return -1
-
     def create_file(self, file_path: Path, uf: str | None = None) -> Dict[str, Any]:
         reader = ExcelReader()
         data = reader.read(str(file_path), uf=uf)
@@ -822,10 +798,14 @@ class JobStore:
         job.headers = file_data["headers"]
         job.data = file_data["data"]
         column_mapping = dict(payload["column_mapping"])
-        cte_output_idx = self._find_cte_output_index(file_data.get("headers", []))
-        if cte_output_idx == -1:
-            raise ValueError("Coluna obrigatória 'Nº CTE' não encontrada na planilha.")
-        column_mapping["cte_output"] = cte_output_idx
+        cte_output_idx = column_mapping.get("cte_output")
+        if not isinstance(cte_output_idx, int):
+            raise ValueError("Mapeie a coluna 'Saida CTE' antes de iniciar.")
+        total_columns = len(file_data.get("headers", []))
+        if cte_output_idx < 0 or cte_output_idx >= total_columns:
+            raise ValueError(
+                f"Mapeamento invalido para 'Saida CTE': indice {cte_output_idx} fora do intervalo de colunas."
+            )
 
         job.column_mapping = column_mapping
         job.execute_envios = payload.get("execute_envios", True)
@@ -1072,17 +1052,20 @@ def create_job(request: Request, payload: Dict[str, Any]) -> Dict[str, Any]:
         "password": "***",
     }
 
-    job = store.create_job(
-        {
-            "file_id": payload["fileId"],
-            "column_mapping": payload["columnMapping"],
-            "execute_envios": payload.get("executeEnvios", False),
-            "settings": settings,
-            "settings_snapshot": settings_snapshot,
-            "client_ip": _client_ip(request),
-            "user_agent": _user_agent(request),
-        }
-    )
+    try:
+        job = store.create_job(
+            {
+                "file_id": payload["fileId"],
+                "column_mapping": payload["columnMapping"],
+                "execute_envios": payload.get("executeEnvios", False),
+                "settings": settings,
+                "settings_snapshot": settings_snapshot,
+                "client_ip": _client_ip(request),
+                "user_agent": _user_agent(request),
+            }
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     runner = JobRunner(job)
     thread = threading.Thread(target=runner.run, daemon=True)
     thread.start()
