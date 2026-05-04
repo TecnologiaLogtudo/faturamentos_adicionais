@@ -2,7 +2,7 @@ import pandas as pd
 import warnings
 import os
 import re
-from app.utils.logger import Logger
+from core.utils.logger import Logger
 
 # Ignorar avisos do openpyxl sobre estilos padrão do Excel
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
@@ -25,7 +25,7 @@ def limpar_chave(valor):
         txt = txt[:-2]
     return txt
 
-def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo_saida=None):
+def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo_saida=None, uf=None):
     if not caminho_arquivo_entrada:
         logger.error("Nenhum arquivo de entrada fornecido. Processo cancelado.")
         return None
