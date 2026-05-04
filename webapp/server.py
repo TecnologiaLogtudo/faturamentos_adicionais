@@ -518,6 +518,14 @@ class JobRunner:
                     if self.job.column_mapping.get("tipo_adc") is not None
                     else ""
                 )
+                
+                # Pular blocos do tipo 'IT'
+                if tipo_adc.upper() == 'IT':
+                    self.log(
+                        f"Registro {idx+1} do tipo 'IT' - pulando processamento.",
+                        level="info",
+                    )
+                    continue
                 valor_cte = (
                     str(row[self.job.column_mapping["valor_cte"]]).strip()
                     if self.job.column_mapping.get("valor_cte") is not None

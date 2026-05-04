@@ -133,18 +133,28 @@ def processar_planilha_logtudo(caminho_arquivo_entrada):
             col_transp_zle = next((c for c in df_zle.columns if re.search(r'nº transporte', str(c), re.IGNORECASE)), None)
             col_frete = next((c for c in df_zle.columns if re.search(r'valor frete', str(c), re.IGNORECASE)), None)
             col_centro = next((c for c in df_zle.columns if str(c).strip().lower() == 'centro'), None)
+            col_codigo_imposto = next((c for c in df_zle.columns if re.search(r'código.*imposto', str(c), re.IGNORECASE)), None)
             
             if col_transp_zle and col_frete and col_centro:
                 df_extraido['Chave_Temp'] = df_extraido['Transporte'].apply(limpar_chave)
                 df_zle['Chave_Temp'] = df_zle[col_transp_zle].apply(limpar_chave)
                 
-                df_zle_subset = df_zle[['Chave_Temp', col_frete, col_centro]].drop_duplicates(subset=['Chave_Temp'])
+                colunas_para_merge = ['Chave_Temp', col_frete, col_centro]
+                if col_codigo_imposto:
+                    colunas_para_merge.append(col_codigo_imposto)
+                
+                df_zle_subset = df_zle[colunas_para_merge].drop_duplicates(subset=['Chave_Temp'])
                 
                 df_extraido = pd.merge(df_extraido, df_zle_subset, on='Chave_Temp', how='left')
                 
                 df_extraido.rename(columns={col_frete: 'Valor Frete', col_centro: 'Centro'}, inplace=True)
+                if col_codigo_imposto:
+                    df_extraido.rename(columns={col_codigo_imposto: 'Código de imposto'}, inplace=True)
                 df_extraido.drop('Chave_Temp', axis=1, inplace=True)
-                logger.success("Colunas 'Valor Frete' e 'Centro' adicionadas com sucesso.")
+                colunas_adicionadas = ['Valor Frete', 'Centro']
+                if col_codigo_imposto:
+                    colunas_adicionadas.append('Código de imposto')
+                logger.success(f"Colunas {', '.join(colunas_adicionadas)} adicionadas com sucesso.")
             else:
                 logger.error("Colunas 'Nº transporte', 'Valor Frete' ou 'Centro' não encontradas na ZLE.")
         else:
