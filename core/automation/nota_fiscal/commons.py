@@ -4,6 +4,7 @@ Rotinas comuns compartilhadas entre os fluxos de nota fiscal.
 Mantém utilidades e etapas reutilizadas em múltiplos caminhos.
 """
 
+import re
 import unicodedata
 
 
@@ -30,6 +31,17 @@ class NotaFiscalCommonsMixin:
 
     def _uses_ba_pe_special_rules(self, uf):
         return self._normalize_uf_key(uf) in {"BA", "BAHIA", "PE", "PERNAMBUCO"}
+
+    def _normalize_cte_complemento_search(self, cte_number):
+        text = "" if cte_number is None else str(cte_number).strip()
+        if not text:
+            return ""
+
+        match = re.match(r"^\d{4}0{2,}([1-9]\d*)$", text)
+        if not match:
+            return text
+
+        return match.group(1)
 
     def _split_block_values(self, raw_value):
         """Normaliza valores de bloco em lista única (aceita vírgula, ; e quebra de linha)."""
@@ -344,6 +356,12 @@ class NotaFiscalCommonsMixin:
         self.delay.custom(self.interaction_delay * 1.5)
 
         try:
+            cte_search = self._normalize_cte_complemento_search(cte_number)
+            if cte_search != str(cte_number or "").strip():
+                self.gui.log(
+                    f"CT-e normalizado para pesquisa complementar: {cte_number} -> {cte_search}"
+                )
+
             # Preencher campo de pesquisa
             selector_input = 'input[name="pesquisa_complementou_id"]'
             page.wait_for_selector(selector_input, state='visible', timeout=5000)
@@ -353,9 +371,9 @@ class NotaFiscalCommonsMixin:
             # Limpar e preencher com o CT-e
             page.fill(selector_input, '')
             self.delay.custom(self.interaction_delay // 2)
-            page.locator(selector_input).type(cte_number, delay=self.typing_delay)
+            page.locator(selector_input).type(cte_search, delay=self.typing_delay)
             
-            self.gui.log(f"✓ CT-e digitado no campo de pesquisa: {cte_number}")
+            self.gui.log(f"✓ CT-e digitado no campo de pesquisa: {cte_search}")
             self.delay.custom(self.interaction_delay * 2)
             
             # Clicar em Pesquisar
@@ -376,7 +394,7 @@ class NotaFiscalCommonsMixin:
                     raise Exception(f"Erro ao clicar no botão Pesquisar (ambas estratégias falharam): {e2}")
             
             self.delay.custom(self.network_delay)  # Aguardar resposta da pesquisa
-            self.steps.append(f"CT-e complementar pesquisado: {cte_number}")
+            self.steps.append(f"CT-e complementar pesquisado: {cte_search}")
             
         except Exception as e:
             raise Exception(f"Erro ao pesquisar CT-e complementar (Etapa 5): {str(e)}")

@@ -70,6 +70,16 @@ class ExcelReader:
             from core.services.excel_agrupador import processar_planilha_logtudo_agrupada
             
             path = Path(file_path)
+
+            if self._is_grouped_treated_workbook(path):
+                return self._read_excel(str(path), 'xlsx', sheet_name='Dados Extraídos')
+
+            # Se não estiver totalmente tratada, identificar blocos pendentes
+            pending_blocks = self.get_pending_blocks(str(path))
+            if pending_blocks:
+                print(f"Encontrados {len(pending_blocks)} blocos pendentes para processamento")
+                # Aqui você pode adicionar lógica adicional, como logging ou notificação
+
             new_filename = f"Processado_Agrupado_{path.stem}.xlsx"
             new_path = path.parent / new_filename
             
@@ -87,6 +97,132 @@ class ExcelReader:
         except Exception as e:
             uf_label = str(uf or "UF selecionada").strip()
             raise Exception(f"Erro ao processar planilha de {uf_label}: {str(e)}")
+
+    def _is_grouped_treated_workbook(self, file_path):
+        """Verifica se o arquivo ja e uma planilha agrupada pronta para automacao."""
+        try:
+            from openpyxl import load_workbook
+
+            wb = load_workbook(file_path, read_only=True, data_only=True)
+            try:
+                if 'Dados Extraídos' not in wb.sheetnames:
+                    return False
+                ws = wb['Dados Extraídos']
+                header = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), None)
+                if not header:
+                    return False
+                normalized_headers = {self._normalize_header(h) for h in header if h is not None}
+                required_headers = {
+                    self._normalize_header('Senha Ravex'),
+                    self._normalize_header('Tipo de custo'),
+                    self._normalize_header('Nota fiscal'),
+                    self._normalize_header('Nº Transporte'),
+                    self._normalize_header('Valor Frete'),
+                    self._normalize_header('CTe gerado'),
+                }
+                if not required_headers.issubset(normalized_headers):
+                    return False
+                
+                # Verificar se há pelo menos um CTe gerado preenchido
+                cte_col_idx = None
+                for idx, h in enumerate(header):
+                    if self._normalize_header(h) == self._normalize_header('CTe gerado'):
+                        cte_col_idx = idx
+                        break
+                
+                if cte_col_idx is None:
+                    return False
+                
+                has_cte_generated = False
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if row[cte_col_idx] and str(row[cte_col_idx]).strip():
+                        has_cte_generated = True
+                        break
+                
+                return has_cte_generated
+            finally:
+                wb.close()
+        except Exception:
+            return False
+
+    def get_pending_blocks(self, file_path):
+        """
+        Identifica blocos pendentes na aba 'Relatório agrupado' que ainda precisam ser processados.
+        
+        Args:
+            file_path: Caminho do arquivo Excel
+            
+        Returns:
+            Lista de dicionários com informações dos blocos pendentes
+        """
+        try:
+            from openpyxl import load_workbook
+            
+            wb = load_workbook(file_path, read_only=True, data_only=True)
+            try:
+                if 'Relatório agrupado' not in wb.sheetnames:
+                    return []
+                
+                ws = wb['Relatório agrupado']
+                header = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), None)
+                if not header:
+                    return []
+                
+                # Normalizar headers para busca
+                normalized_headers = [self._normalize_header(h) for h in header]
+                
+                # Encontrar índices das colunas relevantes
+                senha_idx = None
+                tipo_idx = None
+                nf_idx = None
+                transporte_idx = None
+                valor_idx = None
+                cte_idx = None
+                
+                for idx, h in enumerate(normalized_headers):
+                    if h == self._normalize_header('Senha Ravex'):
+                        senha_idx = idx
+                    elif h == self._normalize_header('Tipo de custo'):
+                        tipo_idx = idx
+                    elif h == self._normalize_header('Nota fiscal'):
+                        nf_idx = idx
+                    elif h == self._normalize_header('Nº Transporte'):
+                        transporte_idx = idx
+                    elif h == self._normalize_header('Valor Frete'):
+                        valor_idx = idx
+                    elif h == self._normalize_header('CTe gerado'):
+                        cte_idx = idx
+                
+                pending_blocks = []
+                
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    # Verificar se CTe gerado está vazio
+                    cte_value = row[cte_idx] if cte_idx is not None else None
+                    if not cte_value or not str(cte_value).strip():
+                        # Bloco pendente encontrado
+                        block_info = {
+                            'senha_ravex': row[senha_idx] if senha_idx is not None else '',
+                            'tipo_custo': row[tipo_idx] if tipo_idx is not None else '',
+                            'nota_fiscal': row[nf_idx] if nf_idx is not None else '',
+                            'transporte': row[transporte_idx] if transporte_idx is not None else '',
+                            'valor_frete': row[valor_idx] if valor_idx is not None else '',
+                            'cte_gerado': cte_value or ''
+                        }
+                        pending_blocks.append(block_info)
+                
+                return pending_blocks
+                
+            finally:
+                wb.close()
+        except Exception as e:
+            print(f"Erro ao identificar blocos pendentes: {str(e)}")
+            return []
+
+    def _normalize_header(self, value):
+        text = str(value or "").strip()
+        normalized = unicodedata.normalize("NFKD", text)
+        normalized = "".join(c for c in normalized if not unicodedata.combining(c))
+        return normalized.lower()
 
     def _read_excel(self, file_path, extension, sheet_name=None):
         """
