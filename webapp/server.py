@@ -519,13 +519,16 @@ class JobRunner:
                     else ""
                 )
                 
-                # Pular blocos do tipo 'IT'
-                if tipo_adc.upper() == 'IT':
-                    self.log(
-                        f"Registro {idx+1} do tipo 'IT' - pulando processamento.",
-                        level="info",
-                    )
-                    continue
+                # Pular blocos com Código de imposto 'IT'
+                codigo_imposto_idx = self.job.column_mapping.get("codigo_imposto")
+                if codigo_imposto_idx is not None and codigo_imposto_idx < len(row):
+                    codigo_imposto = str(row[codigo_imposto_idx]).strip().upper()
+                    if codigo_imposto == 'IT':
+                        self.log(
+                            f"Registro {idx+1} com Código de imposto 'IT' - pulando processamento.",
+                            level="info",
+                        )
+                        continue
                 valor_cte = (
                     str(row[self.job.column_mapping["valor_cte"]]).strip()
                     if self.job.column_mapping.get("valor_cte") is not None

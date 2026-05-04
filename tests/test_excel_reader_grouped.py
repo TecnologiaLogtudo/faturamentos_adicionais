@@ -26,6 +26,7 @@ class ExcelReaderGroupedTreatmentTest(unittest.TestCase):
                 "Nº transporte": ["9001", "9002"],
                 "Valor Frete": [10.5, 20.25],
                 "Centro": ["BA01", "BA01"],
+                "Código de imposto": ["", "IT"],
             }
         )
         with pd.ExcelWriter(path, engine="openpyxl") as writer:
@@ -40,6 +41,7 @@ class ExcelReaderGroupedTreatmentTest(unittest.TestCase):
             "Nº Transporte",
             "Valor Frete",
             "Tipo Cte",
+            "Código de imposto",
             "CTe gerado",
         ]
 
@@ -60,7 +62,7 @@ class ExcelReaderGroupedTreatmentTest(unittest.TestCase):
                 self.assertEqual(mapping["valor_cte"], 4)
                 self.assertEqual(mapping["senha_ravex"], 0)
                 self.assertEqual(mapping["transporte"], 3)
-                self.assertEqual(mapping["cte_output"], 6)
+                self.assertEqual(mapping["cte_output"], 7)
 
 
 if __name__ == "__main__":
