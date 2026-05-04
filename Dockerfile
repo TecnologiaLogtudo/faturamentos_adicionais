@@ -19,38 +19,14 @@ WORKDIR /app
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-# Instalar dependências mínimas do Chromium
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    gnupg \
-    ca-certificates \
-    fonts-liberation \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpangocairo-1.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libxshmfence1 \
-    libxfixes3 \
-    libxext6 \
-    libxrender1 \
-    libgtk-3-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Instala Playwright + Chromium somente
-RUN pip install playwright && \
-    playwright install chromium
+    PYTHONUNBUFFERED=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 COPY --from=builder /opt/venv /opt/venv
+
+# Instala o Chromium no mesmo cache usado pelo usuario de runtime.
+RUN playwright install --with-deps chromium && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY config ./config
 COPY core ./core
@@ -59,7 +35,7 @@ COPY webapp ./webapp
 RUN mkdir -p /app/dist /app/webapp/uploads /app/webapp/exports && \
     cp -a /app/webapp/static/. /app/dist/
 
-RUN useradd -m appuser && chown -R appuser:appuser /app /opt/venv
+RUN useradd -m appuser && chown -R appuser:appuser /app /opt/venv /ms-playwright
 
 USER appuser
 
