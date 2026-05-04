@@ -87,6 +87,7 @@ def _parse_env_bool(value: Optional[str], default: bool = True) -> bool:
 
 
 PLAYWRIGHT_HEADLESS = _parse_env_bool(os.getenv("PLAYWRIGHT_HEADLESS"), default=True)
+SAVE_CTE_TO_SPREADSHEET = _parse_env_bool(os.getenv("SAVE_CTE_TO_SPREADSHEET"), default=True)
 
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -318,12 +319,11 @@ class JobRunner:
             pass
 
         try:
-            uf = str(self.job.settings.get("uf") or "").strip().lower()
             treated_path = str(self.job.treated_file_path or "").strip()
-            if uf == "bahia" and treated_path:
+            if treated_path:
                 resolved = Path(treated_path).resolve()
                 if resolved.exists() and resolved.is_file():
-                    self._record_artifact("planilha_tratada_ba", str(resolved))
+                    self._record_artifact("planilha_tratada", str(resolved))
         except Exception:
             pass
 
@@ -716,13 +716,15 @@ class JobRunner:
                         job_run.duration_sec = (job_run.ended_at - job_run.started_at).total_seconds()
 
     def _save_spreadsheet_partial(self) -> None:
+        if not SAVE_CTE_TO_SPREADSHEET:
+            return
         if not self.job.file_path:
             return
         try:
             from openpyxl import load_workbook
 
             wb = load_workbook(self.job.file_path)
-            ws = wb.active
+            ws = wb["Dados Extraídos"] if "Dados Extraídos" in wb.sheetnames else wb.active
             cte_output_idx = self.job.column_mapping.get("cte_output")
             if cte_output_idx is None:
                 return
@@ -736,13 +738,16 @@ class JobRunner:
             self.log(f"Erro ao salvar planilha automaticamente: {e}", level="error")
 
     def _save_spreadsheet_final(self) -> None:
+        if not SAVE_CTE_TO_SPREADSHEET:
+            self.log("Modo teste ativo: CT-e gerado nao foi salvo na planilha.", level="warning")
+            return
         if not self.job.file_path:
             return
         try:
             from openpyxl import load_workbook
 
             wb = load_workbook(self.job.file_path)
-            ws = wb.active
+            ws = wb["Dados Extraídos"] if "Dados Extraídos" in wb.sheetnames else wb.active
             cte_output_idx = self.job.column_mapping.get("cte_output")
             if cte_output_idx is None:
                 return
@@ -1008,10 +1013,9 @@ def upload_file(file: UploadFile = File(...), uf: Optional[str] = Form(None)) ->
     with dest.open("wb") as f:
         f.write(file.file.read())
     file_payload = store.create_file(dest, uf=uf)
-    if uf and uf.strip().lower() == "bahia":
-        treated_path = file_payload.get("file_info", {}).get("full_path")
-        if treated_path and str(treated_path) != str(dest):
-            print(f"[upload] Bahia detectada: usando arquivo tratado {treated_path}")
+    treated_path = file_payload.get("file_info", {}).get("full_path")
+    if uf and treated_path and str(treated_path) != str(dest):
+        print(f"[upload] {uf.strip()} detectada: usando arquivo tratado {treated_path}")
     preview = {
         "headers": file_payload["headers"],
         "rows": file_payload["data"][:10],
@@ -1242,7 +1246,7 @@ def export_results(job_id: str, payload: Dict[str, Any]) -> FileResponse:
     return FileResponse(export_path)
 
 
-RESULT_SPREADSHEET_TYPES = ("planilha_preenchida", "planilha_tratada_ba")
+RESULT_SPREADSHEET_TYPES = ("planilha_preenchida", "planilha_tratada", "planilha_tratada_ba")
 
 
 @app.get("/api/results/files")

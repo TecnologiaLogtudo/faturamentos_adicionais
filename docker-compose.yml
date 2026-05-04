@@ -18,6 +18,7 @@ services:
       - PYTHONUNBUFFERED=1
       - TZ=America/Sao_Paulo
       - PLAYWRIGHT_HEADLESS=true
+      - SAVE_CTE_TO_SPREADSHEET=true
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_PASS=${ADMIN_PASS}
