@@ -7,6 +7,7 @@ Lê arquivos Excel (xlsx, xls, csv) e extrai dados
 from pathlib import Path
 import pandas as pd
 import os
+import unicodedata
 
 
 class ExcelReader:
@@ -35,13 +36,11 @@ class ExcelReader:
         file_path = str(file_path)
         extension = self._get_file_extension(file_path)
 
-        # Verificar processamento específico para Bahia
-        if uf and uf.strip().lower() == 'bahia':
-            return self._process_bahia(file_path)
-
         if extension == 'csv':
             return self._read_csv(file_path)
         elif extension in ['xlsx', 'xls']:
+            if self._uses_grouped_treatment(uf):
+                return self._process_grouped(file_path, uf)
             return self._read_excel(file_path, extension)
         else:
             raise Exception(f"Formato de arquivo não suportado: {extension}")
@@ -51,30 +50,45 @@ class ExcelReader:
         parts = filename.split('.')
         return parts[-1].lower() if parts else ''
 
-    def _process_bahia(self, file_path):
+    def _normalize_uf(self, uf):
+        """Normaliza a UF selecionada para comparações internas."""
+        text = str(uf or "").strip()
+        normalized = unicodedata.normalize("NFKD", text)
+        normalized = "".join(c for c in normalized if not unicodedata.combining(c))
+        return normalized.lower()
+
+    def _uses_grouped_treatment(self, uf):
+        """Indica se a UF deve usar o modelo novo agrupado."""
+        return self._normalize_uf(uf) in {"bahia", "ba", "pernambuco", "pe", "ceara", "ce"}
+
+    def _process_grouped(self, file_path, uf=None):
         """
-        Processa arquivo específico da Bahia usando process_BA
-        Gera um arquivo tratado e o lê em seguida.
+        Processa arquivo usando o modelo agrupado para BA, PE e CE.
+        Gera um arquivo tratado e lê a aba Dados Extraídos.
         """
         try:
-            from core.services.process_BA import process_sheet
+            from core.services.excel_agrupador import processar_planilha_logtudo_agrupada
             
-            # Definir caminho para arquivo tratado (ex: Arquivo_TRATADA.xlsx)
             path = Path(file_path)
-            new_filename = f"{path.stem}_TRATADA.xlsx"
+            new_filename = f"Processado_Agrupado_{path.stem}.xlsx"
             new_path = path.parent / new_filename
             
-            # Processar e salvar arquivo tratado
-            # O script process_BA consolida as linhas e gera um novo arquivo
-            process_sheet(file_path, str(new_path))
+            result = processar_planilha_logtudo_agrupada(file_path, str(new_path), uf=uf)
+            if not result:
+                raise Exception("O agrupador não retornou arquivo tratado")
+
+            if isinstance(result, tuple):
+                treated_path = result[0]
+            else:
+                treated_path = result
             
-            # Ler o arquivo tratado como se fosse o arquivo de trabalho
-            return self._read_excel(str(new_path), 'xlsx')
+            return self._read_excel(str(treated_path), 'xlsx', sheet_name='Dados Extraídos')
             
         except Exception as e:
-            raise Exception(f"Erro ao processar planilha da Bahia: {str(e)}")
+            uf_label = str(uf or "UF selecionada").strip()
+            raise Exception(f"Erro ao processar planilha de {uf_label}: {str(e)}")
 
-    def _read_excel(self, file_path, extension):
+    def _read_excel(self, file_path, extension, sheet_name=None):
         """
         Lê arquivo Excel usando openpyxl para preservar formatação
 
@@ -89,7 +103,12 @@ class ExcelReader:
             from openpyxl import load_workbook
             
             wb = load_workbook(file_path)
-            ws = wb.active
+            if sheet_name:
+                if sheet_name not in wb.sheetnames:
+                    raise Exception(f"Aba '{sheet_name}' não encontrada")
+                ws = wb[sheet_name]
+            else:
+                ws = wb.active
             
             # Ler headers da primeira linha
             self.headers = []
@@ -202,12 +221,12 @@ class ExcelReader:
             Dicionário com mapeamento encontrado
         """
         mappings = {
-            'nota_fiscal': ['NOTA FISCAL', 'nota fiscal', 'nf', 'nº nf'],
-            'tipo_adc': ['TIPO ADC', 'tipo adc', 'tipoadc', 'adc', 'tipo adicional', 'tipo'],
-            'valor_cte': ['VALOR TT CTE', 'valor tt cte', 'valor_tt_cte', 'valor cte', 'valor_cte', 'valor', 'frete'],
+            'nota_fiscal': ['Nota fiscal', 'NOTA FISCAL', 'nota fiscal', 'nf', 'nº nf'],
+            'tipo_adc': ['Tipo de custo', 'TIPO ADC', 'tipo adc', 'tipoadc', 'adc', 'tipo adicional', 'tipo'],
+            'valor_cte': ['Valor Frete', 'VALOR TT CTE', 'valor tt cte', 'valor_tt_cte', 'valor cte', 'valor_cte', 'valor', 'frete'],
             'senha_ravex': ['SENHA RAVEX', 'senha ravex', 'senha_ravex', 'ravex', 'senha'],
-            'transporte': ['Transporte adicional', 'TRANSPORTE ORIGEM', 'transporte origem', 'transporte', 'transporte_de_origem', 'origem'],
-            'cte_output': ['Nº CTE', 'nº cte', 'numero cte', 'número cte', 'cte', 'n_cte', 'nºcte']
+            'transporte': ['Nº Transporte', 'Transporte adicional', 'TRANSPORTE ORIGEM', 'transporte origem', 'transporte', 'transporte_de_origem', 'origem'],
+            'cte_output': ['CTe gerado', 'Nº CTE', 'nº cte', 'numero cte', 'número cte', 'cte', 'n_cte', 'nºcte']
         }
 
         result = {}

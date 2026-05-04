@@ -4,8 +4,32 @@ Rotinas comuns compartilhadas entre os fluxos de nota fiscal.
 Mantém utilidades e etapas reutilizadas em múltiplos caminhos.
 """
 
+import unicodedata
+
+
 class NotaFiscalCommonsMixin:
     """Métodos do workflow para NotaFiscalCommonsMixin."""
+
+    def _normalize_uf_key(self, uf):
+        text = str(uf or "").strip()
+        normalized = unicodedata.normalize("NFKD", text)
+        normalized = "".join(c for c in normalized if not unicodedata.combining(c))
+        return normalized.upper()
+
+    def _uf_display_name(self, uf):
+        key = self._normalize_uf_key(uf)
+        names = {
+            "BA": "Bahia",
+            "BAHIA": "Bahia",
+            "PE": "Pernambuco",
+            "PERNAMBUCO": "Pernambuco",
+            "CE": "Ceará",
+            "CEARA": "Ceará",
+        }
+        return names.get(key, str(uf or "").strip() or "UF")
+
+    def _uses_ba_pe_special_rules(self, uf):
+        return self._normalize_uf_key(uf) in {"BA", "BAHIA", "PE", "PERNAMBUCO"}
 
     def _split_block_values(self, raw_value):
         """Normaliza valores de bloco em lista única (aceita vírgula, ; e quebra de linha)."""
@@ -219,14 +243,14 @@ class NotaFiscalCommonsMixin:
     def determinar_identificacao_pedido(self, tipo_adc, uf):
         """
         Determina o texto a ser preenchido na Identificação do Pedido.
-        Centraliza a regra de negócio e separa a lógica da Bahia (BA) das demais UFs.
+        Centraliza a regra de negócio e separa a lógica de Bahia/Pernambuco das demais UFs.
         """
-        uf_normalizada = str(uf).strip().upper() if uf else ""
+        uf_nome = self._uf_display_name(uf)
 
-        # 1. Regra prioritária para a Bahia (BA): sempre força o mesmo texto.
-        if uf_normalizada == 'BA':
+        # 1. Regra prioritária para Bahia e Pernambuco: sempre força o mesmo texto.
+        if self._uses_ba_pe_special_rules(uf):
             self.gui.log(
-                "UF BA detectada: usando Identificação do Pedido fixa 'DESPESAS ADICIONAIS'."
+                f"UF {uf_nome} detectada: usando Identificação do Pedido fixa 'DESPESAS ADICIONAIS'."
             )
             return "DESPESAS ADICIONAIS"
 
@@ -516,7 +540,7 @@ class NotaFiscalCommonsMixin:
         Etapa 9: Preenche Senha Ravex
         Campo: <input name="dados_tagsCTe[ravex]">
         Valor: Da coluna "Senha Ravex"
-        Regra BA: usa apenas o último valor do bloco
+        Regra BA/PE: usa apenas o último valor do bloco
         """
         if not self._set_tag("preencher_senha_ravex"):
             return
@@ -530,13 +554,13 @@ class NotaFiscalCommonsMixin:
             page.locator(selector).scroll_into_view_if_needed()
             self.delay.custom(self.interaction_delay)
 
-            uf_normalizada = str(uf).strip().upper() if uf else ""
-            is_bahia = uf_normalizada in ("BA", "BAHIA", "Bahia")
-            senha_para_preencher = self._last_block_value(senha_ravex) if is_bahia else self._join_block_values(senha_ravex)
+            uf_nome = self._uf_display_name(uf)
+            usa_regra_ba_pe = self._uses_ba_pe_special_rules(uf)
+            senha_para_preencher = self._last_block_value(senha_ravex) if usa_regra_ba_pe else self._join_block_values(senha_ravex)
 
-            if is_bahia:
+            if usa_regra_ba_pe:
                 self.gui.log(
-                    f"UF BA detectada ({uf_normalizada}): usando última Senha Ravex do bloco ({senha_para_preencher})"
+                    f"UF {uf_nome} detectada: usando última Senha Ravex do bloco ({senha_para_preencher})"
                 )
             
             # Limpar campo

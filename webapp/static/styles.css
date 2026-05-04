@@ -232,6 +232,46 @@ body {
   border: 1px dashed var(--border);
 }
 
+.badge.warning {
+  background: rgba(247, 183, 51, 0.16);
+  color: #ffd37a;
+  border-color: rgba(247, 183, 51, 0.55);
+}
+
+.badge.success {
+  background: rgba(71, 201, 150, 0.14);
+  color: #8ee7c5;
+  border-color: rgba(71, 201, 150, 0.45);
+}
+
+.alert-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(247, 183, 51, 0.55);
+  border-radius: 12px;
+  background: rgba(247, 183, 51, 0.12);
+  color: var(--text);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+}
+
+.alert-banner strong,
+.alert-banner span {
+  display: block;
+}
+
+.alert-banner span {
+  margin-top: 2px;
+  color: #ffd37a;
+  font-size: 13px;
+}
+
+.hidden {
+  display: none !important;
+}
+
 .btn {
   background: var(--surface-2);
   color: var(--text);
@@ -310,6 +350,16 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
+}
+
+.field.invalid label {
+  color: #ffd37a;
+}
+
+.field.invalid input,
+.field.invalid select {
+  border-color: rgba(247, 183, 51, 0.9);
+  box-shadow: 0 0 0 3px rgba(247, 183, 51, 0.12);
 }
 
 .table-wrap {

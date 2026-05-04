@@ -1,33 +1,70 @@
-# Atualizado para a versão baseada no Ubuntu 24.04 (Noble) recomendada na documentação
-FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
+# ---------- BUILDER ----------
+FROM python:3.11-slim AS builder
 
-# Define o diretório de trabalho no container
 WORKDIR /app
 
-# Copia o arquivo de requisitos e instala as dependências
+ENV PIP_NO_CACHE_DIR=1
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-RUN playwright install chromium
+RUN python -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip && \
+    /opt/venv/bin/pip install -r requirements.txt
 
-# Copia todo o restante do código para o container
-COPY . .
 
-# Copia os assets estáticos do frontend sem depender de estágio Node
-RUN mkdir -p /app/dist && cp -a /app/webapp/static/. /app/dist/
+# ---------- RUNTIME ----------
+FROM python:3.11-slim
 
-# Conforme recomendado para Web Scraping/Crawling, ajustamos as permissões
-# e alternamos para o usuário não-root 'pwuser' para manter o sandbox do Chromium ativado
-RUN mkdir -p /app/webapp/uploads && \
-    chown -R pwuser:pwuser /app
+WORKDIR /app
 
-USER pwuser
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-# Variáveis de ambiente úteis
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+# Instalar dependências mínimas do Chromium
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    gnupg \
+    ca-certificates \
+    fonts-liberation \
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpangocairo-1.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libxshmfence1 \
+    libxfixes3 \
+    libxext6 \
+    libxrender1 \
+    libgtk-3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instala Playwright + Chromium somente
+RUN pip install playwright && \
+    playwright install chromium
+
+COPY --from=builder /opt/venv /opt/venv
+
+COPY config ./config
+COPY core ./core
+COPY webapp ./webapp
+
+RUN mkdir -p /app/dist /app/webapp/uploads /app/webapp/exports && \
+    cp -a /app/webapp/static/. /app/dist/
+
+RUN useradd -m appuser && chown -R appuser:appuser /app /opt/venv
+
+USER appuser
 
 EXPOSE 8000
 
-# Inicia o servidor Python FastAPI (Ajuste "webapp.server:app" se o nome do seu arquivo principal for outro)
+HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
 CMD ["uvicorn", "webapp.server:app", "--host", "0.0.0.0", "--port", "8000"]

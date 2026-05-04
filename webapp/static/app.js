@@ -41,10 +41,7 @@ if (logsLink) {
 
 navButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
-    navButtons.forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    Object.values(views).forEach((v) => v.classList.remove("active"));
-    views[btn.dataset.view].classList.add("active");
+    showView(btn.dataset.view);
     if (btn.dataset.view === "resultados") {
       if (state.jobId) {
         loadResults();
@@ -53,6 +50,12 @@ navButtons.forEach((btn) => {
     }
   });
 });
+
+function showView(viewName) {
+  navButtons.forEach((b) => b.classList.toggle("active", b.dataset.view === viewName));
+  Object.values(views).forEach((v) => v.classList.remove("active"));
+  views[viewName].classList.add("active");
+}
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -73,6 +76,7 @@ function loadSettings() {
   el("cfgNetworkDelay").value = data.network_delay || 3000;
   el("cfgInteractionDelay").value = data.interaction_delay || 500;
   el("cfgTypingDelay").value = data.typing_delay || 75;
+  updateConfigNotice();
 }
 
 function getSettingsPayload() {
@@ -91,10 +95,63 @@ function getSettingsPayload() {
 function saveSettings() {
   const payload = getSettingsPayload();
   localStorage.setItem("logtudo_settings", JSON.stringify(payload));
-  el("settingsStatus").textContent = "Salvo (local)";
+  updateConfigNotice();
 }
 
 el("btnSaveSettings").addEventListener("click", saveSettings);
+
+function getMissingSettings(settings = getSettingsPayload()) {
+  const missing = [];
+  if (!settings.username) missing.push("usuário");
+  if (!settings.password) missing.push("senha");
+  return missing;
+}
+
+function markFieldInvalid(id, invalid) {
+  const field = el(id)?.closest(".field");
+  if (field) {
+    field.classList.toggle("invalid", invalid);
+  }
+}
+
+function updateConfigNotice() {
+  const settings = getSettingsPayload();
+  const missing = getMissingSettings(settings);
+  const hasMissing = missing.length > 0;
+  const text = hasMissing
+    ? `Preencha ${missing.join(" e ")} antes de iniciar a automação.`
+    : "Credenciais prontas para iniciar.";
+
+  el("configAlert").classList.toggle("hidden", !hasMissing);
+  el("configAlertText").textContent = text;
+  el("settingsStatus").textContent = hasMissing ? "Incompleto" : "Salvo (local)";
+  el("settingsStatus").classList.toggle("warning", hasMissing);
+  el("settingsStatus").classList.toggle("success", !hasMissing);
+  el("settingsStatus").classList.toggle("ghost", false);
+
+  markFieldInvalid("cfgUser", !settings.username);
+  markFieldInvalid("cfgPass", !settings.password);
+
+  return missing;
+}
+
+function showConfigError(message) {
+  el("configAlertText").textContent = message;
+  el("configAlert").classList.remove("hidden");
+  showStartError(message);
+}
+
+el("btnGoSettings").addEventListener("click", () => {
+  showView("configuracoes");
+  const missing = updateConfigNotice();
+  const target = missing.includes("usuário") ? el("cfgUser") : el("cfgPass");
+  target?.focus();
+});
+
+["cfgUser", "cfgPass", "cfgUf"].forEach((id) => {
+  el(id).addEventListener("input", updateConfigNotice);
+  el(id).addEventListener("change", updateConfigNotice);
+});
 
 function fillMappingOptions(headers) {
   const selects = [
@@ -240,7 +297,18 @@ async function parseErrorDetail(res) {
 }
 
 async function startJob() {
-  if (!state.fileId) return;
+  const missingSettings = updateConfigNotice();
+  if (missingSettings.length) {
+    showConfigError(`Configuração incompleta: preencha ${missingSettings.join(" e ")} antes de iniciar.`);
+    showView("configuracoes");
+    const target = missingSettings.includes("usuário") ? el("cfgUser") : el("cfgPass");
+    target?.focus();
+    return;
+  }
+  if (!state.fileId) {
+    showStartError("Selecione uma planilha antes de iniciar.");
+    return;
+  }
   const mapping = getMapping();
   if (!validateMapping(mapping)) {
     showStartError("Preencha todos os campos obrigatorios do mapeamento antes de iniciar.");
@@ -421,7 +489,7 @@ function renderResultFilesHistory() {
     const tr = document.createElement("tr");
     const checked = state.selectedResultFileIds.has(item.id) ? "checked" : "";
     const disabled = item.available ? "" : "disabled";
-    const labelTipo = item.type === "planilha_tratada_ba" ? "Tratada BA" : "Preenchida";
+    const labelTipo = item.type === "planilha_tratada" ? "Tratada" : item.type === "planilha_tratada_ba" ? "Tratada BA" : "Preenchida";
     tr.innerHTML = `
       <td><input type="checkbox" class="result-file-check" data-id="${item.id}" ${checked} /></td>
       <td>${labelTipo}</td>
