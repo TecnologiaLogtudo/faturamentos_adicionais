@@ -4,49 +4,25 @@ Rotinas comuns compartilhadas entre os fluxos de nota fiscal.
 Mantém utilidades e etapas reutilizadas em múltiplos caminhos.
 """
 
-import re
-import unicodedata
-
-
 class NotaFiscalCommonsMixin:
     """Métodos do workflow para NotaFiscalCommonsMixin."""
-
-    def _normalize_uf_key(self, uf):
-        text = str(uf or "").strip()
-        normalized = unicodedata.normalize("NFKD", text)
-        normalized = "".join(c for c in normalized if not unicodedata.combining(c))
-        return normalized.upper()
-
-    def _uf_display_name(self, uf):
-        key = self._normalize_uf_key(uf)
-        names = {
-            "BA": "Bahia",
-            "BAHIA": "Bahia",
-            "PE": "Pernambuco",
-            "PERNAMBUCO": "Pernambuco",
-            "CE": "Ceará",
-            "CEARA": "Ceará",
-        }
-        return names.get(key, str(uf or "").strip() or "UF")
-
-    def _uses_ba_pe_special_rules(self, uf):
-        return self._normalize_uf_key(uf) in {"BA", "BAHIA", "PE", "PERNAMBUCO"}
-
-    def _normalize_cte_complemento_search(self, cte_number):
-        text = "" if cte_number is None else str(cte_number).strip()
-        if not text:
-            return ""
-
-        match = re.match(r"^\d{4}0{2,}([1-9]\d*)$", text)
-        if not match:
-            return text
-
-        return match.group(1)
 
     def _split_block_values(self, raw_value):
         """Normaliza valores de bloco em lista única (aceita vírgula, ; e quebra de linha)."""
         if raw_value is None:
             return []
+
+        if isinstance(raw_value, list):
+            result = []
+            for item in raw_value:
+                result.extend(self._split_block_values(item))
+            final_result = []
+            seen = set()
+            for x in result:
+                if x.lower() not in seen:
+                    seen.add(x.lower())
+                    final_result.append(x)
+            return final_result
 
         text = str(raw_value).strip()
         if not text:
@@ -255,14 +231,14 @@ class NotaFiscalCommonsMixin:
     def determinar_identificacao_pedido(self, tipo_adc, uf):
         """
         Determina o texto a ser preenchido na Identificação do Pedido.
-        Centraliza a regra de negócio e separa a lógica de Bahia/Pernambuco das demais UFs.
+        Centraliza a regra de negócio e separa a lógica da Bahia (BA) das demais UFs.
         """
-        uf_nome = self._uf_display_name(uf)
+        uf_normalizada = str(uf).strip().upper() if uf else ""
 
-        # 1. Regra prioritária para Bahia e Pernambuco: sempre força o mesmo texto.
-        if self._uses_ba_pe_special_rules(uf):
+        # 1. Regra prioritária para a Bahia (BA): sempre força o mesmo texto.
+        if uf_normalizada == 'BA':
             self.gui.log(
-                f"UF {uf_nome} detectada: usando Identificação do Pedido fixa 'DESPESAS ADICIONAIS'."
+                "UF BA detectada: usando Identificação do Pedido fixa 'DESPESAS ADICIONAIS'."
             )
             return "DESPESAS ADICIONAIS"
 
@@ -356,12 +332,6 @@ class NotaFiscalCommonsMixin:
         self.delay.custom(self.interaction_delay * 1.5)
 
         try:
-            cte_search = self._normalize_cte_complemento_search(cte_number)
-            if cte_search != str(cte_number or "").strip():
-                self.gui.log(
-                    f"CT-e normalizado para pesquisa complementar: {cte_number} -> {cte_search}"
-                )
-
             # Preencher campo de pesquisa
             selector_input = 'input[name="pesquisa_complementou_id"]'
             page.wait_for_selector(selector_input, state='visible', timeout=5000)
@@ -371,9 +341,9 @@ class NotaFiscalCommonsMixin:
             # Limpar e preencher com o CT-e
             page.fill(selector_input, '')
             self.delay.custom(self.interaction_delay // 2)
-            page.locator(selector_input).type(cte_search, delay=self.typing_delay)
+            page.locator(selector_input).type(cte_number, delay=self.typing_delay)
             
-            self.gui.log(f"✓ CT-e digitado no campo de pesquisa: {cte_search}")
+            self.gui.log(f"✓ CT-e digitado no campo de pesquisa: {cte_number}")
             self.delay.custom(self.interaction_delay * 2)
             
             # Clicar em Pesquisar
@@ -394,7 +364,7 @@ class NotaFiscalCommonsMixin:
                     raise Exception(f"Erro ao clicar no botão Pesquisar (ambas estratégias falharam): {e2}")
             
             self.delay.custom(self.network_delay)  # Aguardar resposta da pesquisa
-            self.steps.append(f"CT-e complementar pesquisado: {cte_search}")
+            self.steps.append(f"CT-e complementar pesquisado: {cte_number}")
             
         except Exception as e:
             raise Exception(f"Erro ao pesquisar CT-e complementar (Etapa 5): {str(e)}")
@@ -535,6 +505,10 @@ class NotaFiscalCommonsMixin:
             page.locator(selector).scroll_into_view_if_needed()
             self.delay.custom(self.interaction_delay)
             
+            # Limpar campo existente
+            page.fill(selector, '')
+            self.delay.custom(self.interaction_delay // 2)
+            
             # Garantir formato correto do valor numérico (2 casas decimais e vírgula)
             try:
                 if valor_cte is None or str(valor_cte).strip() == '':
@@ -585,7 +559,7 @@ class NotaFiscalCommonsMixin:
         Etapa 9: Preenche Senha Ravex
         Campo: <input name="dados_tagsCTe[ravex]">
         Valor: Da coluna "Senha Ravex"
-        Regra BA/PE: usa apenas o último valor do bloco
+        Regra BA: usa apenas o último valor do bloco
         """
         if not self._set_tag("preencher_senha_ravex"):
             return
@@ -599,13 +573,13 @@ class NotaFiscalCommonsMixin:
             page.locator(selector).scroll_into_view_if_needed()
             self.delay.custom(self.interaction_delay)
 
-            uf_nome = self._uf_display_name(uf)
-            usa_regra_ba_pe = self._uses_ba_pe_special_rules(uf)
-            senha_para_preencher = self._last_block_value(senha_ravex) if usa_regra_ba_pe else self._join_block_values(senha_ravex)
+            uf_normalizada = str(uf).strip().upper() if uf else ""
+            is_bahia = uf_normalizada in ("BA", "BAHIA", "Bahia")
+            senha_para_preencher = self._last_block_value(senha_ravex) if is_bahia else self._join_block_values(senha_ravex)
 
-            if usa_regra_ba_pe:
+            if is_bahia:
                 self.gui.log(
-                    f"UF {uf_nome} detectada: usando última Senha Ravex do bloco ({senha_para_preencher})"
+                    f"UF BA detectada ({uf_normalizada}): usando última Senha Ravex do bloco ({senha_para_preencher})"
                 )
             
             # Limpar campo
