@@ -208,6 +208,7 @@ def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo
             })
             
             # Montar a linha de resumo (Dicionário com as colunas)
+            codigo_imposto_resumo = df_tipo['Código de imposto'].iloc[-1] if 'Código de imposto' in df_tipo.columns else ''
             linha_resumo = pd.DataFrame([{
                 'Senha Ravex': ultima_senha,
                 'Tipo de custo': 'RESUMO ->', 
@@ -215,6 +216,7 @@ def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo
                 'Nº Transporte': ultimo_transporte,
                 'Valor Frete': soma_frete,
                 'Tipo Cte': '',
+                'Código de imposto': codigo_imposto_resumo,
                 'CTe gerado': ''
             }])
             
@@ -236,14 +238,22 @@ def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo
 
         # ---------------------------------------------------------
 
-        # 6. Salvar o novo arquivo Excel
+        # 6. Criar DataFrame de preview (apenas resumos de cada bloco)
+        df_preview = df_final[df_final['Tipo de custo'] == 'RESUMO ->'].copy() if 'Tipo de custo' in df_final.columns else pd.DataFrame()
+        
+        # 7. Salvar o novo arquivo Excel
         logger.info(f"Gerando arquivo final: {caminho_arquivo_saida}")
         with pd.ExcelWriter(caminho_arquivo_saida, engine='openpyxl') as writer:
             # Salva aba base cortando nome se muito grande pro Excel (máx 31 chars)
             nome_base_sheet = f"Base ({str(nome_aba_base)[:20]})"
             todas_as_abas[nome_aba_base].to_excel(writer, sheet_name=nome_base_sheet, index=False, header=False)
             
-            # Salvar a nova aba tratada e agrupada
+            # Salvar a aba Preview com apenas os resumos (para pré-visualização)
+            if not df_preview.empty:
+                df_preview.to_excel(writer, sheet_name='Preview', index=False)
+                logger.success(f"Aba 'Preview' gerada com {len(df_preview)} resumos.")
+            
+            # Salvar a nova aba tratada e agrupada (com todos os dados)
             df_final.to_excel(writer, sheet_name='Dados Extraídos', index=False)
             
             for nome_aba, df_aba in todas_as_abas.items():

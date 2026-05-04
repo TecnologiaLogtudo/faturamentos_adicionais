@@ -92,7 +92,11 @@ class ExcelReader:
             else:
                 treated_path = result
             
-            return self._read_excel(str(treated_path), 'xlsx', sheet_name='Dados Extraídos')
+            # Tentar ler 'Preview' se existir, senão 'Dados Extraídos'
+            try:
+                return self._read_excel(str(treated_path), 'xlsx', sheet_name='Preview')
+            except:
+                return self._read_excel(str(treated_path), 'xlsx', sheet_name='Dados Extraídos')
             
         except Exception as e:
             uf_label = str(uf or "UF selecionada").strip()
