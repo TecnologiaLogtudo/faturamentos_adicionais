@@ -644,7 +644,36 @@ class JobRunner:
                     filter_expanded = True
 
                     if cte_output_idx is not None:
+                        # garante que a linha atual possui colunas suficientes
+                        while len(self.job.data[idx]) <= cte_output_idx:
+                            self.job.data[idx].append("")
                         self.job.data[idx][cte_output_idx] = cte_number
+
+                        # se for planilha agrupada, a linha de resumo tem 'RESUMO ->' em 'tipo_adc'
+                        tipo_adc_idx = self.job.column_mapping.get("tipo_adc")
+                        try:
+                            tipo_val = (
+                                str(self.job.data[idx][tipo_adc_idx]).strip()
+                                if tipo_adc_idx is not None and tipo_adc_idx < len(self.job.data[idx])
+                                else ""
+                            )
+                        except Exception:
+                            tipo_val = ""
+
+                        if tipo_val == "RESUMO ->":
+                            j = idx - 1
+                            while j >= 0:
+                                row_j = self.job.data[j]
+                                # parar se achar linha em branco (separador criado pelo agrupador)
+                                is_blank = all((cell is None or str(cell).strip() == "") for cell in row_j)
+                                if is_blank:
+                                    break
+                                # garantir colunas suficientes na linha destino
+                                while len(row_j) <= cte_output_idx:
+                                    row_j.append("")
+                                row_j[cte_output_idx] = cte_number
+                                j -= 1
+
                         self._save_spreadsheet_partial()
 
                     self.log(f"Registro processado. CT-e: {cte_number}", level="success")
