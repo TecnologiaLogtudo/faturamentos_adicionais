@@ -398,10 +398,12 @@ class NotaFiscalCommonsMixin:
             
             self.gui.log(f"✓ Botão Avançar clicado")
             
-            # Aguardar carregamento da próxima página
+            # Aguardar carregamento da próxima página (rápido)
             self.gui.log("Aguardando próxima página carregar...")
-            page.wait_for_load_state('networkidle', timeout=10000)
-            self.delay.custom(self.network_delay)
+            try:
+                page.wait_for_load_state('load', timeout=5000)
+            except Exception:
+                pass
             
             self.gui.log(f"✓ Próxima página carregada")
             self.steps.append("Avançou para próxima página")
@@ -669,14 +671,13 @@ class NotaFiscalCommonsMixin:
             
             self.gui.log(f"✓ Botão Salvar clicado")
             
-            # Aguardar mudança de URL
-            self.gui.log("Aguardando mudança de URL após salvar...")
-            self.delay.custom(self.network_delay)
+            # Aguardar carregamento após salvar (rápido)
+            self.gui.log("Aguardando página carregar após salvar...")
             
             try:
-                page.wait_for_load_state('networkidle', timeout=10000)
+                page.wait_for_load_state('load', timeout=3000)
             except Exception:
-                self.gui.log("Continuando após timeout de carregamento", level="warning")
+                pass
             
             self.gui.log(f"✓ Formulário salvo com sucesso")
             self.steps.append("Formulário salvo")

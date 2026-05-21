@@ -87,7 +87,7 @@ class EnviosWorkflow:
 
         # Navegar diretamente
         envios_url = current_url + '&tab=envios'
-        page.goto(envios_url, wait_until='networkidle')
+        page.goto(envios_url, wait_until='load')
         self.delay.page_load()
 
     def select_second_row(self, page):
@@ -192,7 +192,7 @@ class EnviosWorkflow:
         # Aguardar processamento
         self.gui.log("Aguardando processamento do CT-e...")
         self.delay.custom(3000)
-        page.wait_for_load_state('networkidle')
+        page.wait_for_load_state('load')
 
     def get_generated_cte_number(self, page):
         """Obtém número do CT-e gerado"""

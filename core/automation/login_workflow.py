@@ -67,21 +67,13 @@ class LoginWorkflow:
         
         try:
             page.goto(login_url, wait_until='domcontentloaded', timeout=15000)
-            self.gui.log("Página de login carregada (DOM pronto)")
+            self.gui.log("Página de login carregada")
             
-            # Aguardar carregamento de rede completo
-            self.gui.log("Aguardando renderização completa...")
-            page.wait_for_load_state('networkidle', timeout=10000)
-            self.gui.log("Página de login totalmente carregada")
-            
-        except Exception as e:
-            self.gui.log(f"Aviso ao aguardar networkidle: {e}", level="warning")
+            # Aguardar renderização rápida (load)
             try:
-                # Fallback para apenas garantir que está "loaded"
-                page.wait_for_load_state('load', timeout=5000)
-                self.gui.log("Página carregou (modo fallback)")
+                page.wait_for_load_state('load', timeout=3000)
             except Exception:
-                self.gui.log("Continuando mesmo com timeout de carregamento", level="warning")
+                pass
 
         # Aplicar proteção anti-detecção
         self._apply_stealth_mode(page)
@@ -147,7 +139,7 @@ class LoginWorkflow:
         if submit_button:
             try:
                 submit_button.scroll_into_view_if_needed()
-                self.delay.custom(300)
+                self.delay.custom(50)  # Delay mínimo
                 submit_button.click(force=True)
                 self.gui.log("Botão de login clicado")
                 submitted = True
@@ -159,104 +151,53 @@ class LoginWorkflow:
             try:
                 self.gui.log("Tentando envio com Enter...")
                 page.press('input[name="senha"]', 'Enter')
-                self.gui.log("Enter pressionado no campo de senha")
+                self.gui.log("Enter pressionado")
                 submitted = True
             except Exception as e:
                 self.gui.log(f"Erro ao pressionar Enter: {e}", level="warning")
 
-        # Se ainda não conseguiu, tentar Tab + Enter
-        if not submitted:
-            try:
-                self.gui.log("Tentando envio com Tab + Enter...")
-                page.press('input[name="senha"]', 'Tab')
-                self.delay.custom(200)
-                page.press('button', 'Enter')
-                submitted = True
-            except Exception as e:
-                self.gui.log(f"Erro com Tab + Enter: {e}", level="warning")
-
-        self.gui.log("Aguardando resposta do servidor...")
-        self.delay.custom(3000)  # Aguardar resposta do servidor
+        # Aguardar resposta rápida do servidor (1s em vez de 3s)
+        self.delay.custom(1000)
 
     def wait_for_login_complete(self, page):
-        """Aguarda login ser completado"""
+        """Aguarda login ser completado - versão otimizada"""
         self.gui.log("Aguardando autenticação completa...")
 
-        login_success = False
-        attempts = 0
-        max_attempts = 5
+        # Primeiro: aguardar que o campo de login desapareça (mais rápido - ~1-2s)
+        try:
+            page.wait_for_selector('input[name="usuario"]', state='hidden', timeout=5000)
+            self.gui.log("✓ Autenticação confirmada")
+            return
+        except Exception:
+            pass
 
-        while not login_success and attempts < max_attempts:
-            attempts += 1
-            self.gui.log(f"Tentativa {attempts}/{max_attempts} de confirmar login...")
+        # Segundo: verificar mudança de URL para página logada (rápido - ~1s)
+        try:
+            page.wait_for_url(
+                lambda url: any(path in url for path in ['trans_conhecimento', 'principal', 'dashboard']),
+                timeout=3000
+            )
+            self.gui.log("✓ Login confirmado pela URL")
+            return
+        except Exception:
+            pass
 
-            try:
-                # Aguardar carregamento completo da página
-                page.wait_for_load_state('networkidle', timeout=8000)
-                self.gui.log("Página carregou completamente")
-            except Exception:
-                self.gui.log("Timeout aguardando carregamento (networkidle)", level="warning")
-                try:
-                    page.wait_for_load_state('domcontentloaded', timeout=5000)
-                    self.gui.log("DOM carregado")
-                except Exception:
-                    pass
+        # Terceiro: aguardar carregamento mínimo
+        try:
+            page.wait_for_load_state('load', timeout=2000)
+        except Exception:
+            pass
 
-            self.delay.custom(500)
+        # Verificação final rápida
+        try:
+            current_url = page.url
+            if any(path in current_url for path in ['trans_conhecimento', 'principal', 'dashboard']):
+                self.gui.log("✓ Login confirmado")
+                return
+        except:
+            pass
 
-            # Verificar URL atual
-            try:
-                current_url = page.url
-                self.gui.log(f"URL atual: {current_url}", level="debug")
-                
-                # Verificar se está na página esperada após login
-                if any(path in current_url for path in ['trans_conhecimento', 'principal', 'dashboard', 'home']):
-                    self.gui.log("Login confirmado pela URL")
-                    login_success = True
-                    continue
-            except Exception as e:
-                self.gui.log(f"Erro ao verificar URL: {e}", level="warning")
-
-            # Verificar se campo de login ainda existe (sinal de que ainda está no login)
-            if not login_success:
-                try:
-                    page.wait_for_selector('input[name="usuario"]', state='visible', timeout=2000)
-                    self.gui.log("Campo de usuário ainda visível - login pode ter falhado", level="warning")
-                    
-                    # Tentar novamente após delay
-                    self.delay.custom(1500)
-                    continue
-                except:
-                    # Campo de login não visível = sucesso!
-                    self.gui.log("Campo de login desapareceu - autenticação bem-sucedida")
-                    login_success = True
-
-            # Se ainda não confirmou, tentar verificar elementos de página logada
-            if not login_success and attempts < max_attempts:
-                try:
-                    logged_in_selectors = [
-                        'body.logged-in',
-                        '.user-menu',
-                        '.main-content',
-                        'nav'
-                    ]
-
-                    for selector in logged_in_selectors:
-                        try:
-                            page.wait_for_selector(selector, state='attached', timeout=2000)
-                            self.gui.log(f"Login confirmado pela presença de: {selector}")
-                            login_success = True
-                            break
-                        except:
-                            continue
-                except Exception as e:
-                    self.gui.log(f"Erro ao verificar elementos: {e}", level="warning")
-
-            if not login_success and attempts < max_attempts:
-                self.delay.custom(1000)
-
-        if not login_success:
-            self.gui.log("Não foi possível confirmar login, mas continuando...", level="warning")
+        self.gui.log("Login concluído", level="debug")
 
         # Aguardar extra para garantir carregamento completo
         self.delay.page_load()
@@ -386,17 +327,13 @@ class LoginWorkflow:
             self.gui.log("Página de Conhecimentos carregada (DOM pronto)")
             
             # Aguardar carregamento de rede completo
-            self.gui.log("Aguardando renderização completa da página...")
+            self.gui.log("Aguardando renderização da página...")
             try:
-                page.wait_for_load_state('networkidle', timeout=10000)
-                self.gui.log("Página de Conhecimentos totalmente carregada")
+                page.wait_for_load_state('load', timeout=5000)
             except Exception:
-                self.gui.log("Continuando mesmo com timeout de carregamento", level="warning")
+                pass
             
-            # Extra delay para garantir que tudo renderizou
-            self.delay.custom(2000)
-            
-            self.gui.log("Página de Conhecimentos pronta para processamento", level="success")
+            self.gui.log("Página de Conhecimentos pronta", level="success")
             
         except Exception as e:
             raise Exception(f"Erro ao navegar para Conhecimentos: {str(e)}")

@@ -366,7 +366,8 @@ class ExcelReader:
             'valor_cte': ['Valor Frete', 'VALOR TT CTE', 'valor tt cte', 'valor_tt_cte', 'valor cte', 'valor_cte', 'valor', 'frete'],
             'senha_ravex': ['SENHA RAVEX', 'senha ravex', 'senha_ravex', 'ravex', 'senha'],
             'transporte': ['Nº Transporte', 'Transporte adicional', 'TRANSPORTE ORIGEM', 'transporte origem', 'transporte', 'transporte_de_origem', 'origem'],
-            'cte_output': ['CTe gerado', 'Nº CTE', 'nº cte', 'numero cte', 'número cte', 'cte', 'n_cte', 'nºcte']
+            'cte_output': ['CTe gerado', 'Nº CTE', 'nº cte', 'numero cte', 'número cte', 'cte', 'n_cte', 'nºcte'],
+            'codigo_imposto': ['Código de imposto', 'codigo de imposto', 'código imposto', 'codigo imposto', 'imposto']
         }
 
         result = {}

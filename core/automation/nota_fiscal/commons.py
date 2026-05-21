@@ -428,12 +428,10 @@ class NotaFiscalCommonsMixin:
             
             self.gui.log(f"✓ Botão Avançar clicado")
             
-            # Aguardar carregamento da próxima página
-            self.gui.log("Aguardando próxima página carregar...")
-            page.wait_for_load_state('networkidle', timeout=10000)
-            self.delay.custom(self.network_delay)
-            
-            self.gui.log(f"✓ Próxima página carregada")
+            # Aguardar carregamento rápido (load em vez de networkidle)
+            self.gui.log("Aguardando página carregar...")
+            page.wait_for_load_state('load', timeout=5000)
+            self.gui.log(f"✓ Página carregada")
             self.steps.append("Avançou para próxima página")
             
         except Exception as e:
@@ -751,7 +749,7 @@ class NotaFiscalCommonsMixin:
             self.delay.custom(self.network_delay)
             
             try:
-                page.wait_for_load_state('networkidle', timeout=10000)
+                page.wait_for_load_state('load', timeout=5000)
             except Exception:
                 self.gui.log("Continuando após timeout de carregamento", level="warning")
             

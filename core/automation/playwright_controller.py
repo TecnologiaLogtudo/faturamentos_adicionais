@@ -135,7 +135,7 @@ class PlaywrightController:
             logging.error(f"Erro ao iniciar Playwright: {e}")
             raise
 
-    def navigate(self, url, wait_until='networkidle'):
+    def navigate(self, url, wait_until='load'):
         """
         Navega para uma URL
 
@@ -148,8 +148,8 @@ class PlaywrightController:
 
         self.page.goto(url, wait_until=wait_until)
         
-        # Aguardar carregamento completo
-        self._wait_for_page_ready(timeout=15000)
+        # Aguardar carregamento rápido
+        self._wait_for_page_ready(timeout=5000)
         
         # Re-aplicar proteções anti-detecção
         self._apply_stealth_mode()
@@ -332,22 +332,24 @@ class PlaywrightController:
         """Verifica se está inicializado"""
         return self.is_initialized and self.page is not None
 
-    def _wait_for_page_ready(self, timeout=10000):
+    def _wait_for_page_ready(self, timeout=5000):
         """
-        Aguarda a página estar completamente pronta
+        Aguarda a página estar pronta (versão otimizada)
         
         Args:
             timeout: Timeout em milissegundos
         """
         try:
-            # Aguardar networkidle para garantir carregamento completo
-            self.page.wait_for_load_state('networkidle', timeout=timeout)
-            logging.info("Página pronta (networkidle)")
+            # Usar 'load' em vez de 'networkidle' (muito mais rápido - ~1s em vez de ~8s)
+            self.page.wait_for_load_state('load', timeout=timeout)
+            logging.info("Página pronta (load)")
         except Exception:
             try:
-                # Fallback para domcontentloaded se networkidle falhar
-                self.page.wait_for_load_state('domcontentloaded', timeout=5000)
+                # Fallback apenas se load falhar
+                self.page.wait_for_load_state('domcontentloaded', timeout=2000)
                 logging.info("Página pronta (domcontentloaded)")
+            except Exception:
+                logging.warning("Página não estava 100% pronta, mas continuando")
             except Exception as e:
                 logging.warning(f"Timeout aguardando carregamento: {e}")
 

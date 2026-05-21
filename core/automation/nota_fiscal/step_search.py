@@ -13,7 +13,7 @@ class NotaFiscalStepSearchMixin:
         try:
             if not self._set_tag("expand_filter.wait_load"):
                 return
-            page.wait_for_load_state('networkidle', timeout=8000)
+            page.wait_for_load_state('load', timeout=5000)
         except:
             self.gui.log("Continuando sem networkidle", level="warning")
 
