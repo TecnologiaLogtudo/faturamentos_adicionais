@@ -57,6 +57,13 @@ class NotaFiscalDescargaPedagioMixin:
             # Etapa 7: Clicar Pesquisar em Natureza da Operação
             self.click_pesquisar_natureza(page)
 
+            # Selecionar Regra: escolher 'COTAÇÃO VAREJO' após Natureza
+            try:
+                self.select_regra(page, 'COTAÇÃO VAREJO')
+            except Exception as e:
+                # Não interromper o fluxo se não encontrar/regra falhar; registrar aviso
+                self.gui.log(f"Falha ao selecionar Regra (não crítica): {e}", level="warning")
+
             # Etapa 8: Preencher Frete Valor
             self.preencher_frete_valor(page, valor_cte)
 

@@ -517,6 +517,52 @@ class NotaFiscalCommonsMixin:
             raise Exception(f"Erro ao clicar Pesquisar (Natureza): {str(e)}")
 
 
+    def select_regra(self, page, regra_text='COTAÇÃO VAREJO', regra_value=None):
+        """
+        Seleciona a Regra de Frete no select `dados_regraFrete_id`.
+        Procura pela opção que contenha o texto `regra_text` (case-insensitive) ou seleciona pelo value se fornecido.
+        """
+        if not self._set_tag("select_regra"):
+            return
+        self.gui.log(f"Etapa: Selecionando Regra ({regra_text})...")
+
+        selector = 'select[name="dados_regraFrete_id"]'
+        try:
+            page.wait_for_selector(selector, state='visible', timeout=5000)
+            page.locator(selector).scroll_into_view_if_needed()
+            self.delay.custom(self.interaction_delay)
+
+            if regra_value:
+                page.select_option(selector, str(regra_value))
+                # Disparar change para garantir que handlers sejam executados
+                page.evaluate("document.querySelector('select[name=\"dados_regraFrete_id\"]')?.dispatchEvent(new Event('change'))")
+                self.delay.custom(self.interaction_delay)
+                self.gui.log(f"✓ Regra selecionada por value: {regra_value}")
+                self.steps.append(f"Regra selecionada: {regra_value}")
+                return
+
+            search_text = (regra_text or '').upper()
+            value = page.evaluate(f'''() => {{
+                const sel = document.querySelector('select[name="dados_regraFrete_id"]');
+                if (!sel) return null;
+                const opt = Array.from(sel.options).find(o => (o.textContent||'').toUpperCase().includes('{search_text}'));
+                return opt ? opt.value : null;
+            }}''')
+
+            if value:
+                page.select_option(selector, value)
+                page.evaluate("document.querySelector('select[name=\"dados_regraFrete_id\"]')?.dispatchEvent(new Event('change'))")
+                self.delay.custom(self.interaction_delay)
+                self.gui.log(f"✓ Regra selecionada: {regra_text} (value={value})")
+                self.steps.append(f"Regra selecionada: {regra_text}")
+                return
+
+            self.gui.log(f"Aviso: opção de Regra contendo '{regra_text}' não encontrada.", level="warning")
+
+        except Exception as e:
+            raise Exception(f"Erro ao selecionar Regra: {str(e)}")
+
+
     def preencher_frete_valor(self, page, valor_cte):
         """
         Etapa 8: Preenche Frete Valor
