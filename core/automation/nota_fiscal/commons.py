@@ -520,7 +520,8 @@ class NotaFiscalCommonsMixin:
     def select_regra(self, page, regra_text='COTAÇÃO VAREJO', regra_value=None):
         """
         Seleciona a Regra de Frete no select `dados_regraFrete_id`.
-        Procura pela opção que contenha o texto `regra_text` (case-insensitive) ou seleciona pelo value se fornecido.
+        Se regra_value for fornecido, usa esse valor.
+        Caso contrário, procura pela opção com texto EXATO `regra_text` (case-insensitive).
         """
         if not self._set_tag("select_regra"):
             return
@@ -541,11 +542,15 @@ class NotaFiscalCommonsMixin:
                 self.steps.append(f"Regra selecionada: {regra_value}")
                 return
 
-            search_text = (regra_text or '').upper()
+            search_text = (regra_text or '').upper().strip()
             value = page.evaluate(f'''() => {{
                 const sel = document.querySelector('select[name="dados_regraFrete_id"]');
                 if (!sel) return null;
-                const opt = Array.from(sel.options).find(o => (o.textContent||'').toUpperCase().includes('{search_text}'));
+                // Busca exata: o texto da opção deve ser IGUAL ao texto procurado (case-insensitive)
+                const opt = Array.from(sel.options).find(o => {{
+                    const text = (o.textContent || '').toUpperCase().trim();
+                    return text === '{search_text}';
+                }});
                 return opt ? opt.value : null;
             }}''')
 
@@ -557,7 +562,7 @@ class NotaFiscalCommonsMixin:
                 self.steps.append(f"Regra selecionada: {regra_text}")
                 return
 
-            self.gui.log(f"Aviso: opção de Regra contendo '{regra_text}' não encontrada.", level="warning")
+            self.gui.log(f"Aviso: opção de Regra com texto exato '{regra_text}' não encontrada.", level="warning")
 
         except Exception as e:
             raise Exception(f"Erro ao selecionar Regra: {str(e)}")
