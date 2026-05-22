@@ -275,3 +275,47 @@ class SpreadsheetWriter:
             raise ValueError(f"Formato não suportado: {ext}")
 
         return filename
+
+    def update_cte_in_workbook(self, file_path, row_identifier, cte_value):
+        """
+        Abre o arquivo Excel e salva o CTe gerado nas abas 'Preview' e 'Dados Extraídos'.
+        Esta função deve ser chamada pelo bot principal após o sucesso da emissão.
+
+        Args:
+            file_path: Caminho do arquivo Excel processado.
+            row_identifier: Identificador da linha (ex: Senha Ravex ou Nota Fiscal) para localizar onde salvar.
+            cte_value: Número do CTe gerado.
+        """
+        try:
+            from openpyxl import load_workbook
+            wb = load_workbook(file_path)
+            sheets_updated = 0
+            
+            for sheet_name in ['Preview', 'Dados Extraídos']:
+                if sheet_name in wb.sheetnames:
+                    ws = wb[sheet_name]
+                    header = [cell.value for cell in ws[1]]
+                    
+                    # Localizar colunas
+                    cte_col_idx = None
+                    id_col_idx = None
+                    
+                    for idx, h in enumerate(header):
+                        h_norm = str(h).strip().lower() if h else ''
+                        if h_norm in ['cte gerado', 'nº cte']:
+                            cte_col_idx = idx + 1
+                        if h_norm in ['senha ravex', 'nota fiscal', 'id']:
+                            if id_col_idx is None:
+                                id_col_idx = idx + 1
+                                
+                    if cte_col_idx and id_col_idx:
+                        # Buscar a linha e atualizar (verifica se o identificador faz parte da célula para suportar arrays agrupados)
+                        for row in range(2, ws.max_row + 1):
+                            cell_val = str(ws.cell(row=row, column=id_col_idx).value or '')
+                            if str(row_identifier) in cell_val:
+                                ws.cell(row=row, column=cte_col_idx, value=cte_value)
+                                sheets_updated += 1
+            if sheets_updated > 0:
+                wb.save(file_path)
+        except Exception as e:
+            print(f"Erro ao atualizar CTe no workbook: {e}")

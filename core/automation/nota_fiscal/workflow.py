@@ -60,6 +60,10 @@ class NotaFiscalWorkflow(
         self.resume_from_tag = data.get('start_from_tag')
         self._resume_found = False
         nota_fiscal = data.get('nota_fiscal', '')
+        
+        # Extrai apenas uma Nota Fiscal (a última) para usar na pesquisa inicial
+        nota_fiscal_busca = self._last_block_value(nota_fiscal) if nota_fiscal else ""
+        
         tipo_adc = data.get('tipo_adc', '')
         should_expand = data.get('should_expand_filter', True)
         
@@ -67,10 +71,10 @@ class NotaFiscalWorkflow(
         self.interaction_delay = int(data.get('interaction_delay', 500))
         self.typing_delay = int(data.get('typing_delay', 75))
 
-        self.gui.log(f"Iniciando processamento - Nota Fiscal: {nota_fiscal}, Tipo: {tipo_adc}")
+        self.gui.log(f"Iniciando processamento - Nota Fiscal Busca: {nota_fiscal_busca} (Grupo: {nota_fiscal}), Tipo: {tipo_adc}")
 
         # 1. Expandir filtro e inserir nota fiscal
-        self.expand_filter_and_search(page, nota_fiscal, should_expand)
+        self.expand_filter_and_search(page, nota_fiscal_busca, should_expand)
 
         # 2. Aguardar resultados e obter CT-e
         if self._set_tag("step_wait_results"):

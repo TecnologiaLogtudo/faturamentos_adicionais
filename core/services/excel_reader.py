@@ -72,7 +72,10 @@ class ExcelReader:
             path = Path(file_path)
 
             if self._is_grouped_treated_workbook(path):
-                return self._read_excel(str(path), 'xlsx', sheet_name='Dados Extraídos')
+                try:
+                    return self._read_excel(str(path), 'xlsx', sheet_name='Preview')
+                except:
+                    return self._read_excel(str(path), 'xlsx', sheet_name='Dados Extraídos')
 
             # Se não estiver totalmente tratada, identificar blocos pendentes
             pending_blocks = self.get_pending_blocks(str(path))
@@ -164,10 +167,14 @@ class ExcelReader:
             
             wb = load_workbook(file_path, read_only=True, data_only=True)
             try:
-                if 'Relatório agrupado' not in wb.sheetnames:
+                # Priorizar a aba Preview, se não existir, tenta Dados Extraídos
+                if 'Preview' in wb.sheetnames:
+                    ws = wb['Preview']
+                elif 'Dados Extraídos' in wb.sheetnames:
+                    ws = wb['Dados Extraídos']
+                else:
                     return []
                 
-                ws = wb['Relatório agrupado']
                 header = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), None)
                 if not header:
                     return []

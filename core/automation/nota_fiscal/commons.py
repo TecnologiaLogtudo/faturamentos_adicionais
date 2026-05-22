@@ -648,14 +648,9 @@ class NotaFiscalCommonsMixin:
             page.locator(selector).scroll_into_view_if_needed()
             self.delay.custom(self.interaction_delay)
 
-            uf_nome = self._uf_display_name(uf)
-            usa_regra_ba_pe = self._uses_ba_pe_special_rules(uf)
-            senha_para_preencher = self._last_block_value(senha_ravex) if usa_regra_ba_pe else self._join_block_values(senha_ravex)
-
-            if usa_regra_ba_pe:
-                self.gui.log(
-                    f"UF {uf_nome} detectada: usando última Senha Ravex do bloco ({senha_para_preencher})"
-                )
+            # Usa sempre apenas uma senha (a última do bloco) para preencher o campo do formulário
+            senha_para_preencher = self._last_block_value(senha_ravex)
+            self.gui.log(f"Usando apenas uma Senha Ravex do bloco: {senha_para_preencher}")
             
             # Limpar campo
             page.fill(selector, '')

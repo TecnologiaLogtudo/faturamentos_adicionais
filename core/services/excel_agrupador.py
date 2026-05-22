@@ -41,7 +41,8 @@ def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo
         'ID': ['id', 'senha', 'senha ravex', 'id ravex'],
         'Tipo de custo': ['tipo de custo', 'tipo adc', 'tipo do custo'],
         'Nota fiscal': ['nota fiscal', 'nf'],
-        'Transporte': ['transporte', 'transporte adc', 'transporte adc criado', 'transporte criado']
+        'Transporte': ['transporte', 'transporte adc', 'transporte adc criado', 'transporte criado'],
+        'Valor aprovado': ['valor aprovado']
     }
 
     try:
@@ -67,12 +68,12 @@ def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo
 
         # 2. Localizar cabeçalho da Base
         indice_cabecalho = -1
-        mapeamento_indices = {'ID': -1, 'Tipo de custo': -1, 'Nota fiscal': -1, 'Transporte': -1}
+        mapeamento_indices = {'ID': -1, 'Tipo de custo': -1, 'Nota fiscal': -1, 'Transporte': -1, 'Valor aprovado': -1}
         
         for i in range(min(10, len(df_bruto))):
             linha = df_bruto.iloc[i].tolist()
             matches = 0
-            indices_temporarios = {'ID': -1, 'Tipo de custo': -1, 'Nota fiscal': -1, 'Transporte': -1}
+            indices_temporarios = {'ID': -1, 'Tipo de custo': -1, 'Nota fiscal': -1, 'Transporte': -1, 'Valor aprovado': -1}
             
             for col_idx, valor_celula in enumerate(linha):
                 valor_limpo = limpar_texto(valor_celula)
@@ -107,35 +108,57 @@ def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo
             df_zle = pd.read_excel(caminho_arquivo_entrada, sheet_name=nome_aba_zle, header=0)
             
             col_transp_zle = next((c for c in df_zle.columns if re.search(r'nº transporte', str(c), re.IGNORECASE)), None)
-            col_frete = next((c for c in df_zle.columns if re.search(r'valor frete', str(c), re.IGNORECASE)), None)
+            col_frete = next((c for c in df_zle.columns if str(c).strip().lower() == 'val frete - zf02'), None)
             col_centro = next((c for c in df_zle.columns if str(c).lower().strip() == 'centro'), None)
             col_codigo_imposto = next((c for c in df_zle.columns if re.search(r'código.*imposto', str(c), re.IGNORECASE)), None)
             
-            if col_transp_zle and col_frete and col_centro:
+            if col_transp_zle and col_centro:
                 df_extraido['Chave_Temp'] = df_extraido['Transporte'].apply(limpar_chave)
                 df_zle['Chave_Temp'] = df_zle[col_transp_zle].apply(limpar_chave)
                 
-                colunas_para_merge = ['Chave_Temp', col_frete, col_centro]
+                colunas_para_merge = ['Chave_Temp', col_centro]
+                if col_frete:
+                    colunas_para_merge.append(col_frete)
                 if col_codigo_imposto:
                     colunas_para_merge.append(col_codigo_imposto)
                 
                 df_zle_subset = df_zle[colunas_para_merge].drop_duplicates(subset=['Chave_Temp'])
                 
                 df_extraido = pd.merge(df_extraido, df_zle_subset, on='Chave_Temp', how='left')
-                df_extraido.rename(columns={col_frete: 'Valor Frete', col_centro: 'Centro'}, inplace=True)
+                
+                renames = {col_centro: 'Centro'}
+                if col_frete:
+                    renames[col_frete] = 'Valor Frete'
                 if col_codigo_imposto:
-                    df_extraido.rename(columns={col_codigo_imposto: 'Código de imposto'}, inplace=True)
+                    renames[col_codigo_imposto] = 'Código de imposto'
+                
+                df_extraido.rename(columns=renames, inplace=True)
                 df_extraido.drop('Chave_Temp', axis=1, inplace=True)
-                colunas_adicionadas = ['Valor Frete', 'Centro']
+                
+                colunas_adicionadas = ['Centro']
+                if col_frete:
+                    colunas_adicionadas.append('Valor Frete')
                 if col_codigo_imposto:
                     colunas_adicionadas.append('Código de imposto')
                 logger.success(f"Colunas {', '.join(colunas_adicionadas)} adicionadas com sucesso.")
             else:
-                logger.warning("Colunas necessárias não encontradas na ZLE.")
+                logger.warning("Colunas necessárias (Transporte ou Centro) não encontradas na ZLE.")
         
-        # Garantir que as colunas existam mesmo se a ZLE falhou
+        # Fallback para "Valor Frete" caso não tenha vindo da ZLE
+        if 'Valor Frete' not in df_extraido.columns:
+            if 'Valor aprovado' in df_extraido.columns:
+                df_extraido['Valor Frete'] = df_extraido['Valor aprovado']
+                logger.info("Usando coluna 'Valor aprovado' da aba Base como Valor Frete.")
+            else:
+                df_extraido['Valor Frete'] = 0
+                logger.warning("Nenhuma coluna de valor de frete encontrada (nem ZLE nem Base).")
+        else:
+            # Caso a ZLE não tenha preenchido tudo, usamos o Valor aprovado nas linhas vazias
+            if 'Valor aprovado' in df_extraido.columns:
+                df_extraido['Valor Frete'] = df_extraido['Valor Frete'].fillna(df_extraido['Valor aprovado'])
+
+        # Garantir que as outras colunas existam mesmo se a ZLE falhou
         if 'Centro' not in df_extraido.columns: df_extraido['Centro'] = 'Sem Centro'
-        if 'Valor Frete' not in df_extraido.columns: df_extraido['Valor Frete'] = 0
         if 'Código de imposto' not in df_extraido.columns: df_extraido['Código de imposto'] = ''
 
         # ---------------------------------------------------------
@@ -191,10 +214,12 @@ def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo
             if df_tipo.empty:
                 continue
                 
-            # Obter os últimos valores e a soma solicitados
-            ultima_senha = df_tipo['Senha Ravex'].iloc[-1]
-            ultima_nf = df_tipo['Nota fiscal'].iloc[-1]
-            ultimo_transporte = df_tipo['Nº Transporte'].iloc[-1]
+            # Coletar todos os valores únicos válidos separados por vírgula para a linha de Resumo
+            todas_senhas = ', '.join([str(x).strip() for x in df_tipo['Senha Ravex'].unique() if pd.notna(x) and str(x).strip()])
+            todas_nfs = ', '.join([str(x).strip() for x in df_tipo['Nota fiscal'].unique() if pd.notna(x) and str(x).strip()])
+            todos_transportes = ', '.join([str(x).strip() for x in df_tipo['Nº Transporte'].unique() if pd.notna(x) and str(x).strip()])
+            
+            # Obter o último tipo de custo e a soma solicitados
             ultimo_tipo_custo = df_tipo['Tipo de custo'].iloc[-1]  # Último tipo de custo
             soma_frete = df_tipo['Valor Frete'].sum()
                 
@@ -210,12 +235,12 @@ def processar_planilha_logtudo_agrupada(caminho_arquivo_entrada, caminho_arquivo
             # Montar a linha de resumo (Dicionário com as colunas)
             codigo_imposto_resumo = df_tipo['Código de imposto'].iloc[-1] if 'Código de imposto' in df_tipo.columns else ''
             linha_resumo = pd.DataFrame([{
-                'Senha Ravex': ultima_senha,
+                'Senha Ravex': todas_senhas,
                 'Tipo de custo': 'RESUMO ->', 
-                'Nota fiscal': ultima_nf,
-                'Nº Transporte': ultimo_transporte,
+                'Nota fiscal': todas_nfs,
+                'Nº Transporte': todos_transportes,
                 'Valor Frete': soma_frete,
-                'Tipo Cte': '',
+                'Tipo Cte': tipo,
                 'Código de imposto': codigo_imposto_resumo,
                 'CTe gerado': ''
             }])

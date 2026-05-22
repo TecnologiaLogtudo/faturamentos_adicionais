@@ -135,9 +135,10 @@ class NotaFiscalPernoiteReentregaMixin:
             self.delay.custom(self.interaction_delay)
 
             # Preencher Número com Senha Ravex
-            self.gui.log(f"Preenchendo Número com Senha Ravex: {senha_ravex}")
+            senha_unica = self._last_block_value(senha_ravex) if senha_ravex else ""
+            self.gui.log(f"Preenchendo Número com Senha Ravex: {senha_unica}")
             try:
-                page_cotacoes.fill('input[name="busca_nro"]', str(senha_ravex))
+                page_cotacoes.fill('input[name="busca_nro"]', str(senha_unica))
             except Exception as e:
                 self.gui.log(f"Erro ao preencher número na cotação: {e}", level="warning")
 

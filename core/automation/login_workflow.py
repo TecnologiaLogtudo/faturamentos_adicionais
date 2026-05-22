@@ -75,6 +75,10 @@ class LoginWorkflow:
             except Exception:
                 pass
 
+        except Exception as e:
+            self.gui.log(f"Erro ao carregar página de login: {e}", level="error")
+            raise
+
         # Aplicar proteção anti-detecção
         self._apply_stealth_mode(page)
 

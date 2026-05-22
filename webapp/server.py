@@ -764,16 +764,38 @@ class JobRunner:
             from openpyxl import load_workbook
 
             wb = load_workbook(self.job.file_path)
-            ws = wb["Dados Extraídos"] if "Dados Extraídos" in wb.sheetnames else wb.active
             cte_output_idx = self.job.column_mapping.get("cte_output")
-            if cte_output_idx is None:
+            id_idx = self.job.column_mapping.get("senha_ravex")
+            if id_idx is None:
+                id_idx = self.job.column_mapping.get("nota_fiscal")
+                
+            if cte_output_idx is None or id_idx is None:
                 return
-            for i, row in enumerate(self.job.data):
-                cte_value = row[cte_output_idx]
-                if cte_value:
-                    ws.cell(row=i + 2, column=cte_output_idx + 1, value=cte_value)
-            wb.save(self.job.file_path)
-            self.log("Planilha salva automaticamente.", level="info")
+                
+            sheets_updated = 0
+            for sheet_name in ['Preview', 'Dados Extraídos']:
+                if sheet_name in wb.sheetnames:
+                    ws = wb[sheet_name]
+                    header = [str(cell.value or '').strip().lower() for cell in ws[1]]
+                    
+                    cte_col_ws = next((idx for idx, h in enumerate(header) if h in ['cte gerado', 'nº cte']), None)
+                    id_col_ws = next((idx for idx, h in enumerate(header) if h in ['senha ravex', 'nota fiscal', 'id']), None)
+                    
+                    if cte_col_ws is not None and id_col_ws is not None:
+                        for row in self.job.data:
+                            if len(row) > cte_output_idx and len(row) > id_idx:
+                                cte_value = row[cte_output_idx]
+                                row_id = str(row[id_idx]).strip()
+                                if cte_value and row_id:
+                                    for r in range(2, ws.max_row + 1):
+                                        cell_val = str(ws.cell(row=r, column=id_col_ws + 1).value or '').strip()
+                                        cell_parts = [v.strip() for v in cell_val.split(',')]
+                                        if row_id == cell_val or row_id in cell_parts:
+                                            ws.cell(row=r, column=cte_col_ws + 1, value=cte_value)
+                                            sheets_updated += 1
+            if sheets_updated > 0:
+                wb.save(self.job.file_path)
+                self.log("Planilha salva automaticamente nas abas encontradas.", level="info")
         except Exception as e:
             self.log(f"Erro ao salvar planilha automaticamente: {e}", level="error")
 
@@ -787,17 +809,38 @@ class JobRunner:
             from openpyxl import load_workbook
 
             wb = load_workbook(self.job.file_path)
-            ws = wb["Dados Extraídos"] if "Dados Extraídos" in wb.sheetnames else wb.active
             cte_output_idx = self.job.column_mapping.get("cte_output")
-            if cte_output_idx is None:
+            id_idx = self.job.column_mapping.get("senha_ravex")
+            if id_idx is None:
+                id_idx = self.job.column_mapping.get("nota_fiscal")
+                
+            if cte_output_idx is None or id_idx is None:
                 return
-            for i, row in enumerate(self.job.data):
-                cte_value = row[cte_output_idx]
-                # Apenas grava o valor se ele existir, para evitar apagar células
-                if cte_value:
-                    ws.cell(row=i + 2, column=cte_output_idx + 1, value=cte_value)
-            wb.save(self.job.file_path)
-            self.log("Planilha salva com sucesso.", level="success")
+                
+            sheets_updated = 0
+            for sheet_name in ['Preview', 'Dados Extraídos']:
+                if sheet_name in wb.sheetnames:
+                    ws = wb[sheet_name]
+                    header = [str(cell.value or '').strip().lower() for cell in ws[1]]
+                    
+                    cte_col_ws = next((idx for idx, h in enumerate(header) if h in ['cte gerado', 'nº cte']), None)
+                    id_col_ws = next((idx for idx, h in enumerate(header) if h in ['senha ravex', 'nota fiscal', 'id']), None)
+                    
+                    if cte_col_ws is not None and id_col_ws is not None:
+                        for row in self.job.data:
+                            if len(row) > cte_output_idx and len(row) > id_idx:
+                                cte_value = row[cte_output_idx]
+                                row_id = str(row[id_idx]).strip()
+                                if cte_value and row_id:
+                                    for r in range(2, ws.max_row + 1):
+                                        cell_val = str(ws.cell(row=r, column=id_col_ws + 1).value or '').strip()
+                                        cell_parts = [v.strip() for v in cell_val.split(',')]
+                                        if row_id == cell_val or row_id in cell_parts:
+                                            ws.cell(row=r, column=cte_col_ws + 1, value=cte_value)
+                                            sheets_updated += 1
+            if sheets_updated > 0:
+                wb.save(self.job.file_path)
+                self.log("Planilha salva com sucesso em ambas as abas.", level="success")
         except Exception as e:
             self.log(f"Erro ao salvar planilha: {e}", level="error")
 
