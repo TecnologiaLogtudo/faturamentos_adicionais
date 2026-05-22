@@ -520,10 +520,11 @@ class JobRunner:
                 )
                 
                 # Pular blocos com Código de imposto 'IT'
+                codigo_imposto_val = ""
                 codigo_imposto_idx = self.job.column_mapping.get("codigo_imposto")
                 if codigo_imposto_idx is not None and codigo_imposto_idx < len(row):
-                    codigo_imposto = str(row[codigo_imposto_idx]).strip().upper()
-                    if codigo_imposto == 'IT':
+                    codigo_imposto_val = str(row[codigo_imposto_idx]).strip()
+                    if codigo_imposto_val.upper() == 'IT':
                         self.log(
                             f"Registro {idx+1} com Código de imposto 'IT' - pulando processamento.",
                             level="info",
@@ -558,6 +559,7 @@ class JobRunner:
                         "valor_cte": valor_cte,
                         "senha_ravex": senha_ravex,
                         "transporte": transporte,
+                        "codigo_imposto": codigo_imposto_val,
                         "uf": self.job.settings.get("uf"),
                         "should_expand_filter": not filter_expanded,
                         "execute_envios": self.job.execute_envios,
