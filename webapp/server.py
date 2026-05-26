@@ -200,6 +200,8 @@ class JobRunner:
         self.controller: Optional[PlaywrightController] = None
         self.delay.app = self
         self.job_run_id: Optional[str] = None
+        self._codigo_imposto_missing_logged = False
+        self._pending_cte_updates: Dict[str, str] = {}
 
     @property
     def state(self) -> Dict[str, Any]:
@@ -358,6 +360,97 @@ class JobRunner:
             return False
         return True
 
+    def _get_codigo_imposto_idx(self) -> int:
+        """
+        Encontra robustamente o índice da coluna 'Código de imposto'.
+        Tenta primeiro o column_mapping mapeado, depois busca nos headers por
+        variações normalizadas do nome da coluna.
+        
+        Returns:
+            Índice da coluna ou -1 se não encontrada
+        """
+        # Tenta usar mapeamento existente
+        idx = self.job.column_mapping.get("codigo_imposto", -1)
+        if (
+            isinstance(idx, int)
+            and idx >= 0
+            and self.job.headers
+            and idx < len(self.job.headers)
+        ):
+            return idx
+
+        # Fallback: busca robusta usando os headers reais da planilha.
+        if not self.job.headers:
+            return -1
+
+        def _norm(text: Any) -> str:
+            normalized = unicodedata.normalize("NFKD", str(text or ""))
+            normalized = "".join(c for c in normalized if not unicodedata.combining(c))
+            return " ".join(normalized.lower().strip().split())
+
+        normalized_headers = [_norm(h) for h in self.job.headers]
+
+        # Match direto por variações conhecidas.
+        aliases = {
+            "codigo de imposto",
+            "codigo imposto",
+            "cod imposto",
+            "imposto",
+        }
+        for i, h in enumerate(normalized_headers):
+            if h in aliases:
+                return i
+
+        # Match por conteúdo (permite pequenos desvios de nomenclatura).
+        for i, h in enumerate(normalized_headers):
+            if "imposto" in h and ("codigo" in h or "cod" in h):
+                return i
+
+        return -1
+
+    def get_cte_processed_summary(self) -> dict:
+        """
+        Retorna um resumo dos blocos processados/pendentes com base na coluna `cte_output` (CTe gerado).
+
+        Returns:
+            dict: { total, processed, pending, processed_rows, pending_rows, first_pending }
+        """
+        summary = {
+            "total": 0,
+            "processed": 0,
+            "pending": 0,
+            "processed_rows": [],
+            "pending_rows": [],
+            "first_pending": None,
+        }
+
+        if not hasattr(self.job, 'data') or not self.job.data:
+            return summary
+
+        summary["total"] = len(self.job.data)
+        cte_idx = self.job.column_mapping.get("cte_output")
+        if cte_idx is None:
+            # Sem mapeamento de CTe, todos ficam pendentes
+            summary["pending"] = summary["total"]
+            summary["pending_rows"] = list(range(summary["total"]))
+            summary["first_pending"] = 0 if summary["total"] > 0 else None
+            return summary
+
+        for i, r in enumerate(self.job.data):
+            try:
+                val = r[cte_idx] if cte_idx < len(r) else None
+            except Exception:
+                val = None
+            if self._is_cte_filled(val):
+                summary["processed"] += 1
+                summary["processed_rows"].append(i)
+            else:
+                summary["pending"] += 1
+                summary["pending_rows"].append(i)
+
+        summary["first_pending"] = summary["pending_rows"][0] if summary["pending_rows"] else None
+        return summary
+
     def _execute_treatment(self, treatment: Dict[str, Any]) -> None:
         steps = treatment.get("steps", [])
         for step in steps:
@@ -372,6 +465,57 @@ class JobRunner:
                 self.delay.custom(int(self.job.settings.get("interaction_delay", 500)))
                 continue
             raise Exception(f"Tratativa nao suportada: {action}")
+
+    def _get_row_identifier_idx(self) -> Optional[int]:
+        id_idx = self.job.column_mapping.get("senha_ravex")
+        if id_idx is None:
+            id_idx = self.job.column_mapping.get("nota_fiscal")
+        return id_idx
+
+    def _queue_cte_update(self, row: List[Any], id_idx: Optional[int], cte_value: str) -> None:
+        if id_idx is None or id_idx >= len(row):
+            return
+        row_id = str(row[id_idx]).strip()
+        if not row_id or not cte_value:
+            return
+        self._pending_cte_updates[row_id] = cte_value
+
+    def _apply_pending_cte_updates(self, wb) -> int:
+        if not self._pending_cte_updates:
+            return 0
+
+        sheets_updated = 0
+        for sheet_name in ['Preview', 'Dados Extraídos']:
+            if sheet_name not in wb.sheetnames:
+                continue
+
+            ws = wb[sheet_name]
+            header = [str(cell.value or '').strip().lower() for cell in ws[1]]
+
+            cte_col_ws = next((idx for idx, h in enumerate(header) if h in ['cte gerado', 'nº cte']), None)
+            id_col_ws = next((idx for idx, h in enumerate(header) if h in ['senha ravex', 'nota fiscal', 'id']), None)
+
+            if cte_col_ws is None or id_col_ws is None:
+                continue
+
+            for r in range(2, ws.max_row + 1):
+                cell_val = str(ws.cell(row=r, column=id_col_ws + 1).value or '').strip()
+                if not cell_val:
+                    continue
+
+                # Não sobrescreve CT-e já preenchido.
+                existing_cte = ws.cell(row=r, column=cte_col_ws + 1).value
+                if self._is_cte_filled(existing_cte):
+                    continue
+
+                cell_parts = [v.strip() for v in cell_val.split(',') if v.strip()]
+                for row_id, cte_value in self._pending_cte_updates.items():
+                    if row_id == cell_val or row_id in cell_parts:
+                        ws.cell(row=r, column=cte_col_ws + 1, value=cte_value)
+                        sheets_updated += 1
+                        break
+
+        return sheets_updated
 
     def _try_known_error_recovery(
         self,
@@ -471,6 +615,7 @@ class JobRunner:
 
             self.job.total_steps = len(self.job.data)
             cte_output_idx = self.job.column_mapping.get("cte_output")
+            id_idx = self._get_row_identifier_idx()
             self.job.current_step = 0
             self.job.current_nf = "N/A"
 
@@ -486,7 +631,17 @@ class JobRunner:
                     f"Detectados {processed_count} registros ja processados na coluna CT-e.",
                     level="info",
                 )
-            for idx, row in enumerate(self.job.data):
+            # Determina ponto de partida baseado em registros já processados (coluna `cte_output`).
+            summary = self.get_cte_processed_summary()
+            start_idx = summary["first_pending"] if summary["first_pending"] is not None else len(self.job.data)
+
+            if summary["processed"] > 0:
+                self.log(
+                    f"Total: {summary['total']}, Processados: {summary['processed']}, Pendentes: {summary['pending']}. Iniciando em registro {start_idx+1}.",
+                    level="info",
+                )
+
+            for idx, row in enumerate(self.job.data[start_idx:], start=start_idx):
                 if not self.job.is_running or self.job.stop_requested:
                     break
 
@@ -519,17 +674,27 @@ class JobRunner:
                     else ""
                 )
                 
-                # Pular blocos com Código de imposto 'IT'
+                # Pular blocos com Código de imposto 'IT' (filtro robusto)
                 codigo_imposto_val = ""
-                codigo_imposto_idx = self.job.column_mapping.get("codigo_imposto")
-                if codigo_imposto_idx is not None and codigo_imposto_idx < len(row):
-                    codigo_imposto_val = str(row[codigo_imposto_idx]).strip()
-                    if codigo_imposto_val.upper() == 'IT':
+                codigo_imposto_idx = self._get_codigo_imposto_idx()
+
+                if codigo_imposto_idx < 0 and not self._codigo_imposto_missing_logged:
+                    self.log(
+                        "Coluna 'Código de imposto' não encontrada no mapeamento automático. "
+                        "Seguindo sem filtro de IT para as linhas pendentes.",
+                        level="warning",
+                    )
+                    self._codigo_imposto_missing_logged = True
+                
+                if codigo_imposto_idx >= 0 and codigo_imposto_idx < len(row):
+                    codigo_imposto_val = str(row[codigo_imposto_idx]).strip().upper()
+                    if codigo_imposto_val == 'IT':
                         self.log(
                             f"Registro {idx+1} com Código de imposto 'IT' - pulando processamento.",
                             level="info",
                         )
                         continue
+                
                 valor_cte = (
                     str(row[self.job.column_mapping["valor_cte"]]).strip()
                     if self.job.column_mapping.get("valor_cte") is not None
@@ -650,31 +815,8 @@ class JobRunner:
                         while len(self.job.data[idx]) <= cte_output_idx:
                             self.job.data[idx].append("")
                         self.job.data[idx][cte_output_idx] = cte_number
-
-                        # se for planilha agrupada, a linha de resumo tem 'RESUMO ->' em 'tipo_adc'
-                        tipo_adc_idx = self.job.column_mapping.get("tipo_adc")
-                        try:
-                            tipo_val = (
-                                str(self.job.data[idx][tipo_adc_idx]).strip()
-                                if tipo_adc_idx is not None and tipo_adc_idx < len(self.job.data[idx])
-                                else ""
-                            )
-                        except Exception:
-                            tipo_val = ""
-
-                        if tipo_val == "RESUMO ->":
-                            j = idx - 1
-                            while j >= 0:
-                                row_j = self.job.data[j]
-                                # parar se achar linha em branco (separador criado pelo agrupador)
-                                is_blank = all((cell is None or str(cell).strip() == "") for cell in row_j)
-                                if is_blank:
-                                    break
-                                # garantir colunas suficientes na linha destino
-                                while len(row_j) <= cte_output_idx:
-                                    row_j.append("")
-                                row_j[cte_output_idx] = cte_number
-                                j -= 1
+                        # Escrita incremental 1:1 (somente linha processada)
+                        self._queue_cte_update(self.job.data[idx], id_idx, cte_number)
 
                         self._save_spreadsheet_partial()
 
@@ -762,42 +904,17 @@ class JobRunner:
             return
         if not self.job.file_path:
             return
+        if not self._pending_cte_updates:
+            return
         try:
             from openpyxl import load_workbook
 
             wb = load_workbook(self.job.file_path)
-            cte_output_idx = self.job.column_mapping.get("cte_output")
-            id_idx = self.job.column_mapping.get("senha_ravex")
-            if id_idx is None:
-                id_idx = self.job.column_mapping.get("nota_fiscal")
-                
-            if cte_output_idx is None or id_idx is None:
-                return
-                
-            sheets_updated = 0
-            for sheet_name in ['Preview', 'Dados Extraídos']:
-                if sheet_name in wb.sheetnames:
-                    ws = wb[sheet_name]
-                    header = [str(cell.value or '').strip().lower() for cell in ws[1]]
-                    
-                    cte_col_ws = next((idx for idx, h in enumerate(header) if h in ['cte gerado', 'nº cte']), None)
-                    id_col_ws = next((idx for idx, h in enumerate(header) if h in ['senha ravex', 'nota fiscal', 'id']), None)
-                    
-                    if cte_col_ws is not None and id_col_ws is not None:
-                        for row in self.job.data:
-                            if len(row) > cte_output_idx and len(row) > id_idx:
-                                cte_value = row[cte_output_idx]
-                                row_id = str(row[id_idx]).strip()
-                                if cte_value and row_id:
-                                    for r in range(2, ws.max_row + 1):
-                                        cell_val = str(ws.cell(row=r, column=id_col_ws + 1).value or '').strip()
-                                        cell_parts = [v.strip() for v in cell_val.split(',')]
-                                        if row_id == cell_val or row_id in cell_parts:
-                                            ws.cell(row=r, column=cte_col_ws + 1, value=cte_value)
-                                            sheets_updated += 1
+            sheets_updated = self._apply_pending_cte_updates(wb)
             if sheets_updated > 0:
                 wb.save(self.job.file_path)
                 self.log("Planilha salva automaticamente nas abas encontradas.", level="info")
+            self._pending_cte_updates.clear()
         except Exception as e:
             self.log(f"Erro ao salvar planilha automaticamente: {e}", level="error")
 
@@ -807,42 +924,17 @@ class JobRunner:
             return
         if not self.job.file_path:
             return
+        if not self._pending_cte_updates:
+            return
         try:
             from openpyxl import load_workbook
 
             wb = load_workbook(self.job.file_path)
-            cte_output_idx = self.job.column_mapping.get("cte_output")
-            id_idx = self.job.column_mapping.get("senha_ravex")
-            if id_idx is None:
-                id_idx = self.job.column_mapping.get("nota_fiscal")
-                
-            if cte_output_idx is None or id_idx is None:
-                return
-                
-            sheets_updated = 0
-            for sheet_name in ['Preview', 'Dados Extraídos']:
-                if sheet_name in wb.sheetnames:
-                    ws = wb[sheet_name]
-                    header = [str(cell.value or '').strip().lower() for cell in ws[1]]
-                    
-                    cte_col_ws = next((idx for idx, h in enumerate(header) if h in ['cte gerado', 'nº cte']), None)
-                    id_col_ws = next((idx for idx, h in enumerate(header) if h in ['senha ravex', 'nota fiscal', 'id']), None)
-                    
-                    if cte_col_ws is not None and id_col_ws is not None:
-                        for row in self.job.data:
-                            if len(row) > cte_output_idx and len(row) > id_idx:
-                                cte_value = row[cte_output_idx]
-                                row_id = str(row[id_idx]).strip()
-                                if cte_value and row_id:
-                                    for r in range(2, ws.max_row + 1):
-                                        cell_val = str(ws.cell(row=r, column=id_col_ws + 1).value or '').strip()
-                                        cell_parts = [v.strip() for v in cell_val.split(',')]
-                                        if row_id == cell_val or row_id in cell_parts:
-                                            ws.cell(row=r, column=cte_col_ws + 1, value=cte_value)
-                                            sheets_updated += 1
+            sheets_updated = self._apply_pending_cte_updates(wb)
             if sheets_updated > 0:
                 wb.save(self.job.file_path)
                 self.log("Planilha salva com sucesso em ambas as abas.", level="success")
+            self._pending_cte_updates.clear()
         except Exception as e:
             self.log(f"Erro ao salvar planilha: {e}", level="error")
 

@@ -9,6 +9,20 @@ class NotaFiscalPernoiteReentregaMixin:
     def process_pernoite_reentrega(self, page, data, cte_number):
         """
         Processa Caminho 2 - Pernoite/Reentrega
+
+        Etapas:
+        1. Selecionar Agência pela UF
+        2. Selecionar Talão (CT-e)
+        3. Preencher Identificação do Pedido (Pernoite/Reentrega)
+        4. Selecionar Tipo de CT-e (Complemento de valores)
+        5. Preencher e pesquisar CT-e complementar
+        6. Clicar Avançar e aguardar próxima página
+        7. Clicar Pesquisar em Natureza da Operação
+        8. Preencher Frete Valor
+        9. Preencher Senha Ravex
+        10. Preencher Observação Conhecimento
+        11. Salvar e aguardar mudança de URL
+        12-15. Executar Envios (marcar checkbox, clicar CT-e, clicar Executar, extrair número)
         """
         tipo_adc = data.get('tipo_adc', '')
         uf = data.get('uf', '')

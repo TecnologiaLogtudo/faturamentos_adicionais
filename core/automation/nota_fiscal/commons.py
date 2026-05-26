@@ -560,7 +560,7 @@ class NotaFiscalCommonsMixin:
                 self.steps.append(f"Regra selecionada: {regra_text}")
                 return
 
-            raise Exception(f"Opção de Regra '{regra_text}' não encontrada na tela do Logtudo.")
+            self.gui.log(f"Aviso: opção de Regra com texto exato '{regra_text}' não encontrada.", level="warning")
 
         except Exception as e:
             raise Exception(f"Erro ao selecionar Regra: {str(e)}")

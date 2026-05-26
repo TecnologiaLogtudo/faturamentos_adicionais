@@ -30,6 +30,15 @@ class NotaFiscalDescargaPedagioMixin:
         valor_cte = data.get('valor_cte', '')
         senha_ravex = data.get('senha_ravex', '')
         transporte = data.get('transporte', '')
+        
+        # PROTEÇÃO EARLY: Pular se código de imposto é 'IT' (antes de qualquer ação)
+        codigo_imposto = data.get('codigo_imposto', '').strip().upper()
+        if codigo_imposto == 'IT':
+            self.gui.log(
+                f"Código de imposto 'IT' detectado - pulando processamento.",
+                level="warning",
+            )
+            return None
 
         self.gui.log(f"Processando Caminho 1 - {tipo_adc}...")
 
@@ -58,8 +67,6 @@ class NotaFiscalDescargaPedagioMixin:
             self.click_pesquisar_natureza(page)
 
             # Selecionar Regra de acordo com o Código de imposto (Obrigatório)
-            codigo_imposto = data.get('codigo_imposto', '').strip().upper()
-            
             if codigo_imposto == 'I1':
                 regra_alvo = 'CST 060 - Bahia'
             else:
