@@ -7,8 +7,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 venv/
+.venv/
 env/
 .env
+.pytest_cache/
 
 # Node / Frontend
 node_modules/
@@ -28,6 +30,11 @@ Thumbs.db
 *.xlsx
 *.xls
 *.csv
+*.db
+*.sqlite
+*.sqlite3
+webapp.db
 webapp/uploads/
+webapp/exports/
 Desnecessario/
 Legacy/
