@@ -223,7 +223,11 @@ function resetFile() {
   state.jobId = null;
   el("fileName").textContent = "-";
   el("fileStats").textContent = "0 linhas, 0 colunas";
-  el("fileBadge").textContent = "Nenhum arquivo";
+  const fileBadge = el("fileBadge");
+  if (fileBadge) {
+    fileBadge.textContent = "Nenhum arquivo";
+    fileBadge.className = "badge";
+  }
   el("previewRows").textContent = "0 linhas";
   const thead = el("previewTable").querySelector("thead");
   const tbody = el("previewTable").querySelector("tbody");
@@ -243,23 +247,54 @@ function resetFile() {
 el("fileInput").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+
+  el("fileName").textContent = file.name;
+  el("fileStats").textContent = "Carregando e tratando a planilha... Por favor, aguarde.";
+  const fileBadge = el("fileBadge");
+  if (fileBadge) {
+    fileBadge.textContent = "Tratando...";
+    fileBadge.className = "badge warning";
+  }
+  el("previewRows").textContent = "Aguarde...";
+  
+  const thead = el("previewTable").querySelector("thead");
+  const tbody = el("previewTable").querySelector("tbody");
+  thead.innerHTML = "";
+  tbody.innerHTML = "<tr><td colspan='100%' style='text-align: center; padding: 20px;'>Tratando planilha...</td></tr>";
+
   const form = new FormData();
   form.append("file", file);
   const settings = getSettingsPayload();
   if (settings.uf) {
     form.append("uf", settings.uf);
   }
-  const res = await fetch(withBasePath("/api/files"), { method: "POST", body: form });
-  if (!res.ok) return;
-  const data = await res.json();
-  state.fileId = data.fileId;
-  state.headers = data.preview.headers;
-  el("fileName").textContent = data.fileInfo.name || file.name;
-  el("fileStats").textContent = `${data.preview.total_rows} linhas, ${data.preview.total_columns} colunas`;
-  el("fileBadge").textContent = "Pronto";
-  fillMappingOptions(state.headers);
-  applyAutoMapping(data.autoMapping);
-  renderPreview(data.preview);
+  
+  try {
+    const res = await fetch(withBasePath("/api/files"), { method: "POST", body: form });
+    if (!res.ok) {
+      throw new Error("Falha na requisição");
+    }
+    const data = await res.json();
+    state.fileId = data.fileId;
+    state.headers = data.preview.headers;
+    el("fileName").textContent = data.fileInfo.name || file.name;
+    el("fileStats").textContent = `${data.preview.total_rows} linhas, ${data.preview.total_columns} colunas`;
+    if (fileBadge) {
+      fileBadge.textContent = "Pronto";
+      fileBadge.className = "badge success";
+    }
+    fillMappingOptions(state.headers);
+    applyAutoMapping(data.autoMapping);
+    renderPreview(data.preview);
+  } catch (error) {
+    console.error("Erro ao fazer upload do arquivo:", error);
+    if (fileBadge) {
+      fileBadge.textContent = "Erro";
+      fileBadge.className = "badge danger";
+    }
+    el("fileStats").textContent = "Falha ao processar a planilha.";
+    tbody.innerHTML = "<tr><td colspan='100%' style='text-align: center; padding: 20px; color: var(--danger);'>Erro ao carregar planilha.</td></tr>";
+  }
 });
 
 function getMapping() {
@@ -628,3 +663,27 @@ loadResultFilesHistory();
 
 
 el("btnClearFile").addEventListener("click", resetFile);
+
+const togglePassBtn = el("togglePass");
+const passInput = el("cfgPass");
+const eyeIcon = el("eyeIcon");
+
+if (togglePassBtn && passInput && eyeIcon) {
+  togglePassBtn.addEventListener("click", () => {
+    const type = passInput.getAttribute("type") === "password" ? "text" : "password";
+    passInput.setAttribute("type", type);
+    
+    if (type === "text") {
+      eyeIcon.innerHTML = `
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+      `;
+    } else {
+      eyeIcon.innerHTML = `
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      `;
+    }
+  });
+}
+
