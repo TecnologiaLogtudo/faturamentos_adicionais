@@ -696,7 +696,7 @@ class NotaFiscalCommonsMixin:
             transporte_texto = self._join_block_values(transporte)
 
             observacao = (
-                f"Referente {tipo_adc} NF {nota_fiscal_texto}\n"
+                f"Referente Despesa adicional NF {nota_fiscal_texto}\n"
                 f"Senha {senha_ravex_texto}\n"
                 f"Transporte {transporte_texto}"
             )

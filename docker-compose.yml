@@ -23,8 +23,8 @@ services:
       - ADMIN_USER=${ADMIN_USER}
       - ADMIN_PASS=${ADMIN_PASS}
     volumes:
-      - uploads_data:/app/webapp/uploads
-      - exports_data:/app/webapp/exports
+      - ./webapp/uploads:/app/webapp/uploads
+      - ./webapp/exports:/app/webapp/exports
     healthcheck:
       test:
         - CMD-SHELL

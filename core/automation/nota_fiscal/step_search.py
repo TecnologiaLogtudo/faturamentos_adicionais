@@ -93,6 +93,75 @@ class NotaFiscalStepSearchMixin:
         except Exception as e:
             raise Exception(f"Erro ao preencher nota fiscal: {e}")
 
+        # Limpar filtros residuais que podem restringir a busca da NF.
+        filtros_residuais = [
+            (
+                'input[name="busca_transp_conhecimentoTransporteReais_dtEmissao"]',
+                "Data de Emissão",
+            ),
+            (
+                'input[name="busca_transp_conhecimentoTransporteReais_nroConhecimento"]',
+                "N.º Conhecimento",
+            ),
+        ]
+
+        for selector, label in filtros_residuais:
+            if not self._set_tag(f"expand_filter.clear_extra:{label}"):
+                return
+
+            try:
+                fields = page.locator(selector)
+                if fields.count() == 0:
+                    self.gui.log(f"Campo '{label}' não encontrado no filtro.", level="debug")
+                    continue
+
+                field = fields.first
+                current_value = field.input_value(timeout=1000).strip()
+                if not current_value:
+                    self.gui.log(f"Campo '{label}' já está vazio.", level="debug")
+                    continue
+            except Exception as e:
+                self.gui.log(
+                    f"Não foi possível ler o campo '{label}' antes de filtrar. Seguindo sem bloquear: {e}",
+                    level="warning",
+                )
+                continue
+
+            try:
+                field.fill('')
+                self.gui.log(f"Campo '{label}' estava preenchido e foi limpo.")
+                self.delay.custom(self.interaction_delay // 2)
+            except Exception as e:
+                self.gui.log(
+                    f"Falha ao limpar campo '{label}' via Playwright. Tentando JavaScript: {e}",
+                    level="warning",
+                )
+                try:
+                    cleared = page.evaluate(
+                        '''(selector) => {
+                            const field = document.querySelector(selector);
+                            if (!field) return false;
+                            field.value = "";
+                            field.dispatchEvent(new Event("input", { bubbles: true }));
+                            field.dispatchEvent(new Event("change", { bubbles: true }));
+                            return true;
+                        }''',
+                        selector,
+                    )
+                    if cleared:
+                        self.gui.log(f"Campo '{label}' foi limpo via JavaScript.")
+                        self.delay.custom(self.interaction_delay // 2)
+                    else:
+                        self.gui.log(
+                            f"Campo '{label}' não encontrado no fallback JavaScript. Seguindo sem bloquear.",
+                            level="warning",
+                        )
+                except Exception as js_error:
+                    self.gui.log(
+                        f"Não foi possível limpar campo '{label}'. Seguindo sem bloquear: {js_error}",
+                        level="warning",
+                    )
+
         if not self._set_tag("expand_filter.delay_before_filter"):
             return
         self.delay.custom(self.interaction_delay * 2)
