@@ -168,6 +168,10 @@
               Abrir video em nova aba
             </a>
           </div>
+          <div id="artifactScreenshotsSection" class="artifact-screenshots-section" hidden>
+            <h3>Prints do Erro</h3>
+            <div id="artifactScreenshotsGallery" class="artifact-screenshots-gallery"></div>
+          </div>
         </section>
 
         <section class="panel" id="panel-browser">
@@ -209,6 +213,25 @@
               </thead>
               <tbody></tbody>
             </table>
+          </div>
+          <div id="errorLogsSection" class="error-logs-section" hidden>
+            <h3>Fluxo de Logs do Job</h3>
+            <div class="log-controls" style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
+              <select id="errorLogFilter" style="padding: 6px 12px; border-radius: 6px; background: #0c101b; color: var(--text); border: 1px solid var(--border);">
+                <option value="ALL">Todos</option>
+                <option value="INFO">INFO</option>
+                <option value="SUCCESS">SUCCESS</option>
+                <option value="WARNING">WARNING</option>
+                <option value="ERROR">ERROR</option>
+              </select>
+              <label class="checkbox" style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-muted); font-size: 13px;">
+                <input type="checkbox" id="errorLogAutoScroll" checked />
+                Auto-scroll
+              </label>
+            </div>
+            <div class="log-body-wrapper" style="max-height: 350px; overflow-y: auto; background: #04070e; border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+              <div id="errorLogStream" class="log-stream"></div>
+            </div>
           </div>
         </section>
       </main>

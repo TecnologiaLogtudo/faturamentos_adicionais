@@ -1253,6 +1253,20 @@ def create_job(request: Request, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"jobId": job.id}
 
 
+@app.get("/api/jobs/active")
+def get_active_job() -> Dict[str, Any]:
+    active_jobs = [j for j in store.jobs.values() if j.is_running]
+    if active_jobs:
+        job = active_jobs[0]
+        return {
+            "jobId": job.id,
+            "status": job.status,
+            "fileId": job.file_id,
+            "progress": job.progress,
+        }
+    return {"jobId": None}
+
+
 @app.get("/api/jobs/{job_id}/status")
 def job_status(job_id: str) -> Dict[str, Any]:
     try:
@@ -1266,6 +1280,9 @@ def job_status(job_id: str) -> Dict[str, Any]:
         "totalSteps": job.total_steps,
         "currentNF": job.current_nf,
         "isPaused": job.is_paused,
+        "fileId": job.file_id,
+        "columnMapping": job.column_mapping,
+        "fileName": Path(job.file_path).name if job.file_path else "-",
     }
 
 
@@ -1357,24 +1374,32 @@ def job_logs_stream(job_id: str) -> StreamingResponse:
 
     def event_stream():
         last_keepalive = time.time()
+        sent_count = 0
         while True:
-            try:
-                entry = job.log_queue.get(timeout=1)
-                payload = json.dumps(
-                    {
-                        "timestamp": entry.timestamp,
-                        "level": entry.level,
-                        "message": entry.message,
-                    },
-                    ensure_ascii=False,
-                )
-                yield f"data: {payload}\n\n"
-            except Empty:
+            # Se a lista de logs foi limpa, reseta o ponteiro
+            if sent_count > len(job.logs):
+                sent_count = len(job.logs)
+
+            if sent_count < len(job.logs):
+                while sent_count < len(job.logs):
+                    entry = job.logs[sent_count]
+                    payload = json.dumps(
+                        {
+                            "timestamp": entry.timestamp,
+                            "level": entry.level,
+                            "message": entry.message,
+                        },
+                        ensure_ascii=False,
+                    )
+                    yield f"data: {payload}\n\n"
+                    sent_count += 1
+            else:
+                time.sleep(0.5)
                 now = time.time()
                 if now - last_keepalive > 10:
                     yield "event: ping\ndata: {}\n\n"
                     last_keepalive = now
-                if job.status in ("completed", "stopped", "error") and job.log_queue.empty():
+                if job.status in ("completed", "stopped", "error") and sent_count >= len(job.logs):
                     break
 
     return StreamingResponse(

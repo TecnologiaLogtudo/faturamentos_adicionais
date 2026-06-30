@@ -221,6 +221,7 @@ function resetFile() {
   state.fileId = null;
   state.headers = [];
   state.jobId = null;
+  localStorage.removeItem("logtudo_current_job_id");
   el("fileName").textContent = "-";
   el("fileStats").textContent = "0 linhas, 0 colunas";
   const fileBadge = el("fileBadge");
@@ -369,6 +370,7 @@ async function startJob() {
     }
     const data = await res.json();
     state.jobId = data.jobId;
+    localStorage.setItem("logtudo_current_job_id", data.jobId);
     el("runStatus").textContent = "Iniciando";
     el("btnStart").disabled = true;
     el("btnStartTop").disabled = true;
@@ -416,6 +418,27 @@ function updateStatus(status) {
   el("connStatus").textContent = state.jobId ? "Conectado" : "Desconectado";
 }
 
+async function loadActiveFileDetails(fileId, columnMapping, fileName) {
+  try {
+    const res = await fetch(withBasePath(`/api/files/${fileId}/preview`));
+    if (!res.ok) return;
+    const previewData = await res.json();
+    state.headers = previewData.headers;
+    el("fileName").textContent = fileName || "-";
+    el("fileStats").textContent = `${previewData.total_rows} linhas, ${previewData.total_columns} colunas`;
+    const fileBadge = el("fileBadge");
+    if (fileBadge) {
+      fileBadge.textContent = "Pronto";
+      fileBadge.className = "badge success";
+    }
+    fillMappingOptions(state.headers);
+    applyAutoMapping(columnMapping);
+    renderPreview(previewData);
+  } catch (error) {
+    console.error("Erro ao carregar detalhes do arquivo ativo:", error);
+  }
+}
+
 async function pollStatus() {
   if (!state.jobId) return;
   const res = await fetch(withBasePath(`/api/jobs/${state.jobId}/status`));
@@ -427,12 +450,19 @@ async function pollStatus() {
   el("progressBadge").textContent = `${pct}%`;
   el("progressText").textContent = `${pct}% - ${data.currentStep} de ${data.totalSteps}`;
   el("currentNF").textContent = `NF: ${data.currentNF}`;
+  
+  if (!state.fileId && data.fileId) {
+    state.fileId = data.fileId;
+    loadActiveFileDetails(data.fileId, data.columnMapping, data.fileName);
+  }
+
   if (data.status === "completed" || data.status === "stopped" || data.status === "error") {
     el("btnPause").disabled = true;
     el("btnStop").disabled = true;
     el("btnStart").disabled = false;
     el("btnStartTop").disabled = false;
     loadResults();
+    localStorage.removeItem("logtudo_current_job_id");
     return;
   }
   setTimeout(pollStatus, 1500);
@@ -658,8 +688,40 @@ el("btnQuickLogs").addEventListener("click", () => {
   views.processamento.scrollIntoView({ behavior: "smooth" });
 });
 
+async function checkActiveJob() {
+  let savedJobId = localStorage.getItem("logtudo_current_job_id");
+  
+  if (!savedJobId) {
+    try {
+      const res = await fetch(withBasePath("/api/jobs/active"));
+      if (res.ok) {
+        const data = await res.json();
+        if (data.jobId) {
+          savedJobId = data.jobId;
+          localStorage.setItem("logtudo_current_job_id", savedJobId);
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao verificar job ativo no servidor:", e);
+    }
+  }
+
+  if (savedJobId) {
+    state.jobId = savedJobId;
+    el("runStatus").textContent = "Recuperando...";
+    el("connStatus").textContent = "Conectado";
+    el("btnStart").disabled = true;
+    el("btnStartTop").disabled = true;
+    el("btnPause").disabled = false;
+    el("btnStop").disabled = false;
+    connectLogs();
+    pollStatus();
+  }
+}
+
 loadSettings();
 loadResultFilesHistory();
+checkActiveJob();
 
 
 el("btnClearFile").addEventListener("click", resetFile);

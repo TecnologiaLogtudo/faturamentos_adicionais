@@ -174,6 +174,14 @@ const resetArtifactVideo = () => {
   section.hidden = true;
 };
 
+const resetArtifactScreenshots = () => {
+  const section = qs("artifactScreenshotsSection");
+  const gallery = qs("artifactScreenshotsGallery");
+  if (!section || !gallery) return;
+  gallery.innerHTML = "";
+  section.hidden = true;
+};
+
 const renderArtifactVideo = (items) => {
   const section = qs("artifactVideoSection");
   const player = qs("artifactVideoPlayer");
@@ -199,12 +207,57 @@ const renderArtifactVideo = (items) => {
   section.hidden = false;
 };
 
+const renderArtifactScreenshots = (items) => {
+  const section = qs("artifactScreenshotsSection");
+  const gallery = qs("artifactScreenshotsGallery");
+  if (!section || !gallery) return;
+
+  const screenshots = (items || []).filter((a) => {
+    if (!a || !a.available) return false;
+    const type = String(a.type || "").toLowerCase();
+    const filePath = String(a.file_path || "").toLowerCase();
+    return type === "screenshot" || filePath.endsWith(".png") || filePath.endsWith(".jpg") || filePath.endsWith(".jpeg");
+  });
+
+  gallery.innerHTML = "";
+  if (!screenshots.length) {
+    section.hidden = true;
+    return;
+  }
+
+  screenshots.forEach((s) => {
+    const imgUrl = withBasePath(`/api/admin/artifacts/${s.id}/file`);
+    const fileName = (s.file_path || "").split(/[\\/]/).pop() || "screenshot.png";
+    const div = document.createElement("div");
+    div.className = "artifact-screenshot-item";
+    div.innerHTML = `
+      <img src="${imgUrl}" alt="${fileName}" class="artifact-screenshot-img" onclick="window.open('${imgUrl}', '_blank')" title="Clique para abrir em tamanho real" />
+      <div class="artifact-screenshot-meta">
+        <span class="artifact-screenshot-name" title="${fileName}">${fileName}</span>
+        <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="artifact-screenshot-open">Abrir</a>
+      </div>
+    `;
+    gallery.appendChild(div);
+  });
+
+  section.hidden = false;
+};
+
 tabs.forEach((tab) => {
   tab.addEventListener("click", async () => {
     tabs.forEach((t) => t.classList.remove("active"));
     panels.forEach((p) => p.classList.remove("active"));
     tab.classList.add("active");
     qs(`panel-${tab.dataset.tab}`).classList.add("active");
+    
+    if (tab.dataset.tab !== "artifacts") {
+      resetArtifactVideo();
+      resetArtifactScreenshots();
+    }
+    if (tab.dataset.tab !== "errors") {
+      resetAdminLogs();
+    }
+
     await loadPanelData(tab.dataset.tab, selectedJobId);
   });
 });
@@ -364,12 +417,14 @@ async function loadSteps(jobId) {
 async function loadArtifacts(jobId) {
   if (!jobId) {
     resetArtifactVideo();
+    resetArtifactScreenshots();
     return;
   }
   const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/artifacts`));
   const tbody = qs("artifactsTable").querySelector("tbody");
   if (!res.ok) {
     resetArtifactVideo();
+    resetArtifactScreenshots();
     showToast("Falha ao carregar artefatos", "error");
     renderEmptyRow(tbody, 3, "Nao foi possivel carregar os artefatos.");
     return;
@@ -378,10 +433,12 @@ async function loadArtifacts(jobId) {
   tbody.innerHTML = "";
   if (!(data.items || []).length) {
     resetArtifactVideo();
+    resetArtifactScreenshots();
     renderEmptyRow(tbody, 3, "Nenhum artefato encontrado para este job.");
     return;
   }
   renderArtifactVideo(data.items || []);
+  renderArtifactScreenshots(data.items || []);
   (data.items || []).forEach((a) => {
     const artifactUrl = withBasePath(`/api/admin/artifacts/${a.id}/file`);
     const fileName = (a.file_path || "").split(/[\\/]/).pop() || "arquivo";
@@ -430,7 +487,14 @@ async function loadBrowserLogs(jobId) {
 }
 
 async function loadErrors(jobId) {
-  if (!jobId) return;
+  if (!jobId) {
+    resetAdminLogs();
+    return;
+  }
+
+  // Sempre conectar ao fluxo de logs do job
+  connectAdminLogs(jobId);
+
   const res = await fetch(withBasePath(`/api/admin/jobs/${jobId}/errors`));
   const tbody = qs("errorsTable").querySelector("tbody");
   if (!res.ok) {
@@ -514,6 +578,8 @@ async function resetLogsWithConfirmation() {
       tbody.innerHTML = "";
     });
     resetArtifactVideo();
+    resetArtifactScreenshots();
+    resetAdminLogs();
 
     await loadSummary();
     await loadJobs();
@@ -581,3 +647,84 @@ jobIdInputs.forEach((inputId, idx) => {
 
 loadSummary();
 loadJobs();
+
+let adminLogEventSource = null;
+let adminLogsList = [];
+let adminLogFilter = "ALL";
+let adminLogAutoScroll = true;
+
+function connectAdminLogs(jobId) {
+  if (adminLogEventSource) {
+    adminLogEventSource.close();
+    adminLogEventSource = null;
+  }
+  adminLogsList = [];
+  renderAdminLogs();
+
+  const section = qs("errorLogsSection");
+  if (!section) return;
+  section.hidden = false;
+
+  const url = withBasePath(`/api/jobs/${jobId}/logs/stream`);
+  adminLogEventSource = new EventSource(url);
+
+  adminLogEventSource.onmessage = (event) => {
+    if (!event.data) return;
+    const entry = JSON.parse(event.data);
+    adminLogsList.push(entry);
+    renderAdminLogs();
+  };
+
+  adminLogEventSource.addEventListener("ping", () => {});
+  adminLogEventSource.onerror = () => {
+    if (adminLogEventSource) {
+      adminLogEventSource.close();
+      adminLogEventSource = null;
+    }
+  };
+}
+
+function renderAdminLogs() {
+  const container = qs("errorLogStream");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  const filtered = adminLogFilter === "ALL"
+    ? adminLogsList
+    : adminLogsList.filter((l) => l.level === adminLogFilter);
+
+  filtered.forEach((log) => {
+    const div = document.createElement("div");
+    div.className = `log-entry ${log.level.toLowerCase()}`;
+    div.innerHTML = `<span>${log.timestamp}</span><span class="level">${log.level}</span><span>${log.message}</span>`;
+    container.appendChild(div);
+  });
+
+  if (adminLogAutoScroll) {
+    container.parentElement.scrollTop = container.parentElement.scrollHeight;
+  }
+}
+
+function resetAdminLogs() {
+  if (adminLogEventSource) {
+    adminLogEventSource.close();
+    adminLogEventSource = null;
+  }
+  adminLogsList = [];
+  const container = qs("errorLogStream");
+  if (container) container.innerHTML = "";
+  const section = qs("errorLogsSection");
+  if (section) section.hidden = true;
+}
+
+qs("errorLogFilter")?.addEventListener("change", (e) => {
+  adminLogFilter = e.target.value;
+  renderAdminLogs();
+});
+
+qs("errorLogAutoScroll")?.addEventListener("change", (e) => {
+  adminLogAutoScroll = e.target.checked;
+  if (adminLogAutoScroll) {
+    renderAdminLogs();
+  }
+});
