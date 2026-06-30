@@ -1140,26 +1140,29 @@ def _user_agent(request: Request) -> str:
 
 
 def _resolve_artifact_disk_path(file_path: str, job_id: Optional[str] = None) -> Optional[Path]:
-    raw_path = Path(file_path)
+    # Substituir barras invertidas de Windows por barras normais para portabilidade no Linux
+    clean_path_str = file_path.replace("\\", "/")
+    raw_path = Path(clean_path_str)
     candidates: List[Path] = []
 
     # 1) Caminho gravado no banco.
+    candidates.append(Path(file_path))
     candidates.append(raw_path)
 
     # 2) Quando o caminho salvo era relativo.
-    if not raw_path.is_absolute():
+    if not raw_path.is_absolute() and not file_path.startswith("/") and not (len(file_path) > 1 and file_path[1] == ":"):
         candidates.append((ROOT / raw_path).resolve())
 
     # 3) Caminhos alternativos por nome de arquivo dentro da pasta de artefatos do job.
-    if job_id and raw_path.name:
-        candidates.append((ARTIFACTS_DIR / job_id / raw_path.name).resolve())
+    filename = raw_path.name
+    if job_id and filename:
+        candidates.append((ARTIFACTS_DIR / job_id / filename).resolve())
 
     # 4) Compatibilidade com caminhos antigos de container.
-    raw_str = str(raw_path).replace("\\", "/")
     legacy_prefixes = ["/app/exports/jobs/", "/app/webapp/exports/jobs/"]
     for prefix in legacy_prefixes:
-        if raw_str.startswith(prefix):
-            tail = raw_str[len(prefix):].lstrip("/")
+        if clean_path_str.startswith(prefix):
+            tail = clean_path_str[len(prefix):].lstrip("/")
             candidates.append((ARTIFACTS_DIR / tail).resolve())
 
     for candidate in candidates:
