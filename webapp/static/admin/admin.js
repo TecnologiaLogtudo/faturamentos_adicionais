@@ -23,7 +23,13 @@ const fullIdByShortId = new Map();
 
 const toDate = (value) => {
   if (!value) return null;
-  const dt = new Date(value);
+  let strVal = String(value);
+  if (!strVal.endsWith("Z") && !strVal.includes("+") && strVal.includes("T")) {
+    strVal += "Z";
+  } else if (!strVal.endsWith("Z") && !strVal.includes("+") && !strVal.includes("T") && strVal.includes("-") && strVal.includes(":")) {
+    strVal = strVal.replace(" ", "T") + "Z";
+  }
+  const dt = new Date(strVal);
   if (Number.isNaN(dt.getTime())) return null;
   return dt;
 };

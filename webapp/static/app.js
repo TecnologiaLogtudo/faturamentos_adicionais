@@ -59,7 +59,13 @@ function showView(viewName) {
 
 function formatDateTime(value) {
   if (!value) return "-";
-  const dt = new Date(value);
+  let strVal = String(value);
+  if (!strVal.endsWith("Z") && !strVal.includes("+") && strVal.includes("T")) {
+    strVal += "Z";
+  } else if (!strVal.endsWith("Z") && !strVal.includes("+") && !strVal.includes("T") && strVal.includes("-") && strVal.includes(":")) {
+    strVal = strVal.replace(" ", "T") + "Z";
+  }
+  const dt = new Date(strVal);
   if (Number.isNaN(dt.getTime())) return String(value);
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
