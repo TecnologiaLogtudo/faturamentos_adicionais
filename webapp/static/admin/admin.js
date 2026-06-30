@@ -195,7 +195,7 @@ const renderArtifactVideo = (items) => {
   if (!section || !player || !openLink) return;
 
   const videoArtifact = (items || []).find((a) => {
-    if (!a || !a.available) return false;
+    if (!a) return false;
     const type = String(a.type || "").toLowerCase();
     const filePath = String(a.file_path || "").toLowerCase();
     return type === "video" || filePath.endsWith(".webm") || filePath.endsWith(".mp4");
@@ -219,15 +219,17 @@ const renderArtifactScreenshots = (items) => {
   if (!section || !gallery) return;
 
   const screenshots = (items || []).filter((a) => {
-    if (!a || !a.available) return false;
+    if (!a) return false;
     const type = String(a.type || "").toLowerCase();
     const filePath = String(a.file_path || "").toLowerCase();
     return type === "screenshot" || filePath.endsWith(".png") || filePath.endsWith(".jpg") || filePath.endsWith(".jpeg");
   });
 
   gallery.innerHTML = "";
+  section.hidden = false;
+
   if (!screenshots.length) {
-    section.hidden = true;
+    gallery.innerHTML = `<div class="table-empty" style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 20px 0;">Nenhum print de erro disponível para este job.</div>`;
     return;
   }
 
@@ -245,8 +247,6 @@ const renderArtifactScreenshots = (items) => {
     `;
     gallery.appendChild(div);
   });
-
-  section.hidden = false;
 };
 
 tabs.forEach((tab) => {
@@ -448,10 +448,7 @@ async function loadArtifacts(jobId) {
   (data.items || []).forEach((a) => {
     const artifactUrl = withBasePath(`/api/admin/artifacts/${a.id}/file`);
     const fileName = (a.file_path || "").split(/[\\/]/).pop() || "arquivo";
-    const isAvailable = !!a.available;
-    const linkHtml = isAvailable
-      ? `<a class="artifact-link" href="${artifactUrl}" target="_blank" rel="noopener noreferrer">${fileName}</a>`
-      : `<span class="artifact-missing" title="Arquivo nao encontrado no disco">${fileName}</span>`;
+    const linkHtml = `<a class="artifact-link" href="${artifactUrl}" target="_blank" rel="noopener noreferrer">${fileName}</a>`;
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${a.type}</td>
