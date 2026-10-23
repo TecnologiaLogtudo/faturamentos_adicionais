@@ -1040,7 +1040,11 @@ def static_file(file_path: str) -> Response:
         raise HTTPException(status_code=404, detail="Arquivo nao encontrado")
     data = full_path.read_bytes()
     media_type, _ = mimetypes.guess_type(str(full_path))
-    return Response(content=data, media_type=media_type or "application/octet-stream")
+    return Response(
+        content=data,
+        media_type=media_type or "application/octet-stream",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/health")

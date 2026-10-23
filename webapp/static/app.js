@@ -1,6 +1,7 @@
 const state = {
   fileId: null,
   jobId: null,
+  logStream: null,
   headers: [],
   logs: [],
   results: [],
@@ -227,6 +228,10 @@ function resetFile() {
   state.fileId = null;
   state.headers = [];
   state.jobId = null;
+  if (state.logStream) {
+    state.logStream.close();
+    state.logStream = null;
+  }
   localStorage.removeItem("logtudo_current_job_id");
   el("fileName").textContent = "-";
   el("fileStats").textContent = "0 linhas, 0 colunas";
@@ -293,6 +298,10 @@ el("fileInput").addEventListener("change", async (e) => {
     fillMappingOptions(state.headers);
     applyAutoMapping(data.autoMapping);
     renderPreview(data.preview);
+    if (!state.jobId) {
+      el("btnStart").disabled = false;
+      el("btnStartTop").disabled = false;
+    }
   } catch (error) {
     console.error("Erro ao fazer upload do arquivo:", error);
     if (fileBadge) {
@@ -448,7 +457,22 @@ async function loadActiveFileDetails(fileId, columnMapping, fileName) {
 async function pollStatus() {
   if (!state.jobId) return;
   const res = await fetch(withBasePath(`/api/jobs/${state.jobId}/status`));
-  if (!res.ok) return;
+  if (!res.ok) {
+    if (res.status === 404) {
+      if (state.logStream) {
+        state.logStream.close();
+        state.logStream = null;
+      }
+      state.jobId = null;
+      localStorage.removeItem("logtudo_current_job_id");
+      updateStatus("Pronto");
+      el("btnPause").disabled = true;
+      el("btnStop").disabled = true;
+      el("btnStart").disabled = false;
+      el("btnStartTop").disabled = false;
+    }
+    return;
+  }
   const data = await res.json();
   updateStatus(data.status);
   const pct = data.progress || 0;
@@ -463,6 +487,10 @@ async function pollStatus() {
   }
 
   if (data.status === "completed" || data.status === "stopped" || data.status === "error") {
+    if (state.logStream) {
+      state.logStream.close();
+      state.logStream = null;
+    }
     el("btnPause").disabled = true;
     el("btnStop").disabled = true;
     el("btnStart").disabled = false;
@@ -476,7 +504,12 @@ async function pollStatus() {
 
 function connectLogs() {
   if (!state.jobId) return;
+  if (state.logStream) {
+    state.logStream.close();
+    state.logStream = null;
+  }
   const stream = new EventSource(withBasePath(`/api/jobs/${state.jobId}/logs/stream`));
+  state.logStream = stream;
   stream.onmessage = (event) => {
     if (!event.data) return;
     const entry = JSON.parse(event.data);
@@ -486,6 +519,9 @@ function connectLogs() {
   stream.addEventListener("ping", () => {});
   stream.onerror = () => {
     stream.close();
+    if (state.logStream === stream) {
+      state.logStream = null;
+    }
   };
 }
 
